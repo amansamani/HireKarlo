@@ -109,7 +109,7 @@ model Job {
   type         String   // e.g., "Full-time", "Part-time", "Contract"
   salaryRange  String?  // e.g., "$100,000 - $130,000"
   description  String   @db.Text
-  status       String   @default("ACTIVE") // ACTIVE, ARCHIVED, FILLED
+  status       String   @default("OPEN") // OPEN, CLOSED, FILLED
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

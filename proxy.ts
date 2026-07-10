@@ -1,10 +1,12 @@
-import { auth } from "@/lib/auth";
+import NextAuth from "next-auth";
+import { authConfig } from "@/lib/auth.config";
 
-export default auth((req) => {
+const { auth } = NextAuth(authConfig);
+
+export const proxy = auth((req) => {
   const isLoggedIn = !!req.auth;
   const isAuthPage = req.nextUrl.pathname.startsWith("/login") || req.nextUrl.pathname.startsWith("/register");
 
-  
   if (isAuthPage) {
     if (isLoggedIn) {
       return Response.redirect(new URL("/dashboard", req.nextUrl));
@@ -12,7 +14,6 @@ export default auth((req) => {
     return null;
   }
 
-  // Protect all other routes
   if (!isLoggedIn) {
     return Response.redirect(new URL("/login", req.nextUrl));
   }

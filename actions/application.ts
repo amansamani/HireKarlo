@@ -1,21 +1,22 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireAuth } from "@/lib/require-auth";
 import { revalidatePath } from "next/cache";
 
 export async function getJobApplicantsAction(jobId: string) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized", applications: [] };
-  }
+  const userId = await requireAuth();
+  if (!userId) return { error: "Unauthorized", applications: [] };
 
   try {
+    const job = await prisma.job.findUnique({ where: { id: jobId } });
+    if (!job || job.userId !== userId) {
+      return { error: "Unauthorized", applications: [] };
+    }
+
     const applications = await prisma.jobApplication.findMany({
       where: { jobId },
-      include: {
-        candidate: true 
-    },
+      include: { candidate: true },
       orderBy: { createdAt: "desc" },
     });
     return { applications };
@@ -26,10 +27,8 @@ export async function getJobApplicantsAction(jobId: string) {
 }
 
 export async function updateApplicationStatusAction(applicationId: string, status: string, jobId: string) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
+  const userId = await requireAuth();
+  if (!userId) return { error: "Unauthorized" };
 
   try {
     const currentApp = await prisma.jobApplication.findUnique({
@@ -39,15 +38,15 @@ export async function updateApplicationStatusAction(applicationId: string, statu
 
     if (!currentApp) return { error: "Application not found" };
 
-    await (prisma.jobApplication.update as any)({
+    await prisma.jobApplication.update({
       where: { id: applicationId },
-      data: { stage: status },
+      data: { stage: status as any },
     });
 
     await prisma.activityLog.create({
       data: {
-        userId: session.user.id,
-        applicationId: applicationId,
+        userId,
+        applicationId,
         action: `Moved to ${status}`,
         details: `${currentApp.candidate.fullName} shifted from ${currentApp.stage} to ${status}`
       }

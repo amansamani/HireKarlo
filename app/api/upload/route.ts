@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createWriteStream } from "fs";
-import { mkdir } from "fs/promises";
-import { join } from "path";
-import { Readable } from "stream";
-import { finished } from "stream/promises";
+import { writeFile, mkdir } from "fs/promises";
+import { join, extname } from "path";
+import { randomUUID } from "crypto";
+
+const ALLOWED_TYPES: Record<string, string> = {
+  "application/pdf": ".pdf",
+  "application/msword": ".doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+};
+const MAX_SIZE = 5 * 1024 * 1024; // 5MB
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,25 +19,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No file uploaded." }, { status: 400 });
     }
 
-    const uniqueFilename = `${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
+    if (!ALLOWED_TYPES[file.type]) {
+      return NextResponse.json({ error: "Only PDF, DOC, DOCX allowed." }, { status: 400 });
+    }
+
+    if (file.size > MAX_SIZE) {
+      return NextResponse.json({ error: "File too large. Max 5MB." }, { status: 400 });
+    }
+
+    const safeExt = ALLOWED_TYPES[file.type];
+    const uniqueFilename = `${randomUUID()}${safeExt}`;
     const uploadDir = join(process.cwd(), "public", "uploads");
-    
-    try {
-      await mkdir(uploadDir, { recursive: true });
-    } catch (e) {}
+
+    await mkdir(uploadDir, { recursive: true });
 
     const path = join(uploadDir, uniqueFilename);
-    
-    const destinationStream = createWriteStream(path);
-    
-    const nodeReadableStream = Readable.fromWeb(file.stream() as any);
-    nodeReadableStream.pipe(destinationStream);
-    
-    await finished(destinationStream);
+    const buffer = Buffer.from(await file.arrayBuffer());
+    await writeFile(path, buffer);
 
     return NextResponse.json({ url: `/uploads/${uniqueFilename}` });
   } catch (error) {
-    console.error("Upload stream error:", error);
+    console.error("Upload error:", error);
     return NextResponse.json({ error: "Upload processing failed." }, { status: 500 });
   }
 }

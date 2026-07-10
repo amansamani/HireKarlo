@@ -1,17 +1,15 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireAuth } from "@/lib/require-auth";
 
 export async function getAllJobsAction() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
+  const userId = await requireAuth();
+  if (!userId) return { error: "Unauthorized" };
 
   try {
     const jobs = await prisma.job.findMany({
-      where: { userId: session.user.id },
+      where: { userId },
       include: {
         _count: {
           select: { applications: true }

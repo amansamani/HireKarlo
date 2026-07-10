@@ -65,7 +65,7 @@ export default function JobsPoolPage() {
                 <div className="flex items-center gap-2.5">
                   <h3 className="font-semibold text-zinc-200 text-sm group-hover:text-zinc-100 transition-colors">{job.title}</h3>
                   <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-mono font-medium ${
-                    job.status === "ACTIVE" || job.status === "OPEN" 
+                    job.status === "OPEN"
                       ? "bg-emerald-950/50 text-emerald-400 border border-emerald-900/60" 
                       : "bg-zinc-800 text-zinc-400 border border-zinc-700"
                   }`}>
@@ -87,9 +87,9 @@ export default function JobsPoolPage() {
                   <span className="text-[10px] text-zinc-500 font-medium">Applicants</span>
                 </div>
 
-                <Link href="/dashboard/jobs/create">
+                <Link href={`/dashboard/jobs/${job.id}`}>
                   <Button className="bg-zinc-100 text-zinc-900 hover:bg-zinc-200 text-xs font-semibold gap-1.5 h-9">
-                      <Plus className="h-4 w-4" /> Create Position
+                      View <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
               </div>

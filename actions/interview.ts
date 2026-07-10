@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireAuth } from "@/lib/require-auth";
 import { revalidatePath } from "next/cache";
 
 export async function scheduleInterviewAction(data: {
@@ -11,13 +11,10 @@ export async function scheduleInterviewAction(data: {
   scheduledAt: string;
   jobId: string;
 }) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
+  const userId = await requireAuth();
+  if (!userId) return { error: "Unauthorized" };
 
   try {
-    // 1. Create the Interview entry
     const interview = await prisma.interview.create({
       data: {
         applicationId: data.applicationId,
@@ -27,7 +24,6 @@ export async function scheduleInterviewAction(data: {
       },
     });
 
-    // 2. Automatically log this into our new Activity Feed
     const currentApp = await prisma.jobApplication.findUnique({
       where: { id: data.applicationId },
       include: { candidate: true }
@@ -35,7 +31,7 @@ export async function scheduleInterviewAction(data: {
 
     await prisma.activityLog.create({
       data: {
-        userId: session.user.id,
+        userId,
         applicationId: data.applicationId,
         action: "Interview Scheduled",
         details: `${data.round} scheduled for ${currentApp?.candidate.fullName} with ${data.interviewer}`,

@@ -1,46 +1,24 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireAuth } from "@/lib/require-auth";
 
 export async function getRecruiterAnalyticsAction() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
+  const userId = await requireAuth();
+  if (!userId) return { error: "Unauthorized" };
 
   try {
-    const totalJobs = await prisma.job.count({
-      where: { userId: session.user.id }
-    });
-
-    const totalApplications = await prisma.jobApplication.count({
-      where: {
-        job: { userId: session.user.id }
-      }
-    });
-
+    const totalJobs = await prisma.job.count({ where: { userId } });
+    const totalApplications = await prisma.jobApplication.count({ where: { job: { userId } } });
     const totalOffers = await prisma.jobApplication.count({
-      where: {
-        job: { userId: session.user.id },
-        stage: "OFFER"
-      }
+      where: { job: { userId }, stage: "OFFER" }
     });
-
     const totalInterviews = await prisma.jobApplication.count({
-      where: {
-        job: { userId: session.user.id },
-        stage: { in: ["TECHNICAL", "HR"] }
-      }
+      where: { job: { userId }, stage: { in: ["TECHNICAL", "HR"] } }
     });
 
     return {
-      stats: {
-        totalJobs,
-        totalApplications,
-        totalOffers,
-        totalInterviews
-      }
+      stats: { totalJobs, totalApplications, totalOffers, totalInterviews }
     };
   } catch (error) {
     console.error("Analytics failure:", error);

@@ -1,23 +1,21 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireAuth } from "@/lib/require-auth";
 
 export async function getAllCandidatesAction() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
+  const userId = await requireAuth();
+  if (!userId) return { error: "Unauthorized" };
 
   try {
     const candidates = await prisma.candidate.findMany({
+      where: {
+        applications: { some: { job: { userId } } }
+      },
       include: {
         applications: {
-          include: {
-            job: {
-              select: { title: true }
-            }
-          }
+          where: { job: { userId } },
+          include: { job: { select: { title: true } } }
         }
       },
       orderBy: { createdAt: "desc" }

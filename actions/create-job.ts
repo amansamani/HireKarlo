@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireAuth } from "@/lib/require-auth";
 import { revalidatePath } from "next/cache";
 
 export async function createJobAction(data: {
@@ -11,10 +11,8 @@ export async function createJobAction(data: {
   type: string;
   description: string;
 }) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { error: "Unauthorized" };
-  }
+  const userId = await requireAuth();
+  if (!userId) return { error: "Unauthorized" };
 
   if (!data.title || !data.department || !data.location) {
     return { error: "Please fill out all required fields." };
@@ -23,7 +21,7 @@ export async function createJobAction(data: {
   try {
     const newJob = await prisma.job.create({
       data: {
-        userId: session.user.id,
+        userId,
         title: data.title,
         department: data.department,
         location: data.location,
