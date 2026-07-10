@@ -7,6 +7,7 @@ const ApplicationSchema = z.object({
   jobId: z.string().min(1, "Job ID is required"),
   candidateName: z.string().min(2, "Name must be at least 2 characters"),
   candidateEmail: z.string().email("Invalid email address"),
+  resumeUrl: z.string().optional(),
 });
 
 export async function submitApplicationAction(values: z.infer<typeof ApplicationSchema>) {
@@ -16,7 +17,7 @@ export async function submitApplicationAction(values: z.infer<typeof Application
     return { error: "Please fill out all fields correctly." };
   }
 
-  const { jobId, candidateName, candidateEmail } = validatedFields.data;
+  const { jobId, candidateName, candidateEmail, resumeUrl } = validatedFields.data;
 
   try {
     const jobExists = await prisma.job.findUnique({
@@ -27,20 +28,37 @@ export async function submitApplicationAction(values: z.infer<typeof Application
       return { error: "This job posting is no longer active." };
     }
 
+    // Check if this applicant has already applied to this specific job
+    const existingApplication = await prisma.jobApplication.findFirst({
+      where: {
+        jobId,
+        candidate: { email: candidateEmail }
+      }
+    });
+
+    if (existingApplication) {
+      return { error: "You have already submitted an application for this job opening." };
+    }
+
+    // Use connectOrCreate to gracefully handle new vs returning candidates 
     await (prisma.jobApplication.create as any)({
       data: {
-      stage: "APPLIED",
-      job: {
-        connect: { id: jobId }
-      },
-      candidate: {
-        create: {
-          fullName: candidateName,
-          email: candidateEmail,
-          experience: 0
+        stage: "APPLIED",
+        job: {
+          connect: { id: jobId }
+        },
+        candidate: {
+          connectOrCreate: {
+            where: { email: candidateEmail },
+            create: {
+              fullName: candidateName,
+              email: candidateEmail,
+              experience: 0,
+              resumeUrl: resumeUrl || null
+            }
+          }
         }
-      }
-    },
+      },
     });
 
     return { success: "Your application has been submitted successfully!" };

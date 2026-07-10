@@ -1,72 +1,32 @@
-"use client";
-
+// components/layout/sidebar.tsx
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
-import { 
-  LayoutDashboard, 
-  Users, 
-  Briefcase, 
-  Calendar, 
-  BarChart3, 
-  Settings, 
-  LogOut,
-  BriefcaseBusiness
-} from "lucide-react";
-import { signOut } from "next-auth/react";
+import { LayoutDashboard, Briefcase, Users, BarChart3, Settings } from "lucide-react";
 
-const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Candidates", href: "/candidates", icon: Users },
-  { name: "Jobs", href: "/jobs", icon: Briefcase },
-  { name: "Interviews", href: "/interviews", icon: Calendar },
-  { name: "Analytics", href: "/analytics", icon: BarChart3 },
-  { name: "Settings", href: "/settings", icon: Settings },
-];
-
-export function Sidebar() {
-  const pathname = usePathname();
+export default function Sidebar() {
+  const links = [
+    { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
+    { href: "/dashboard/candidates", label: "Candidates", icon: Users }, 
+    { href: "/dashboard/jobs", label: "Jobs", icon: Briefcase },
+    { href: "/dashboard/interviews", label: "Interviews", icon: BarChart3 },
+  ];
 
   return (
-    <div className="flex h-full w-64 flex-col border-r border-zinc-800 bg-zinc-900 text-zinc-100">
-      {/* Logo Branding */}
-      <div className="flex h-16 items-center px-6 border-b border-zinc-800 gap-2">
-        <BriefcaseBusiness className="h-6 w-6 text-zinc-100" />
-        <span className="text-lg font-bold tracking-tight">HireTrack</span>
+    <aside className="w-64 border-r border-zinc-800 bg-zinc-950 h-screen sticky top-0 flex flex-col p-4 space-y-6 select-none">
+      <div className="flex items-center gap-2 px-2 py-1.5">
+        <div className="h-6 w-6 rounded bg-zinc-100 flex items-center justify-center text-zinc-900 font-bold text-xs">H</div>
+        <span className="font-semibold text-zinc-50 tracking-tight text-sm">WithTrack</span>
       </div>
-
-      {/* Primary Links */}
-      <nav className="flex-1 space-y-1 px-4 py-6">
-        {navigation.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+      <nav className="space-y-1 flex-1">
+        {links.map((link) => {
+          const Icon = link.icon;
           return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all group duration-200",
-                isActive
-                  ? "bg-zinc-100 text-zinc-900"
-                  : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
-              )}
-            >
-              <item.icon className={cn("h-4 w-4 shrink-0", isActive ? "text-zinc-900" : "text-zinc-400 group-hover:text-zinc-100")} />
-              {item.name}
+            <Link key={link.href} href={link.href} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition-colors">
+              <Icon className="h-4 w-4" />
+              {link.label}
             </Link>
           );
         })}
       </nav>
-
-      {/* User Logout Area */}
-      <div className="p-4 border-t border-zinc-800">
-        <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-400 hover:bg-red-950/30 hover:text-red-400 transition-all duration-200"
-        >
-          <LogOut className="h-4 w-4 shrink-0" />
-          Logout
-        </button>
-      </div>
-    </div>
+    </aside>
   );
 }
