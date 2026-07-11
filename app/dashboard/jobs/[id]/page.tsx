@@ -11,6 +11,8 @@ type Application = {
   id: string;
   stage: string;
   createdAt: Date | string;
+  matchScore?: number | null;
+  aiSummary?: string | null;
   candidate?: {
     fullName: string;
     email: string;
@@ -140,15 +142,33 @@ export default function JobDetailsPage({ params }: { params: Promise<{ id: strin
                     ) : (
                       stageApplicants.map((app) => (
                         <div key={app.id} className="rounded-lg border border-zinc-800 bg-zinc-950 p-3.5 space-y-3 shadow-sm hover:border-zinc-700 transition-colors">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 text-sm font-medium text-zinc-200">
-                              <User className="h-3.5 w-3.5 text-zinc-500" />
-                              {app.candidate?.fullName || "Unnamed Candidate"}
+                            <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 text-sm font-medium text-zinc-200">
+                                <User className="h-3.5 w-3.5 text-zinc-500" />
+                                {app.candidate?.fullName || "Unnamed Candidate"}
+                              </div>
+                              {typeof app.matchScore === "number" && (
+                                <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded-full border ${
+                                  app.matchScore >= 70
+                                    ? "text-emerald-400 bg-emerald-950/40 border-emerald-800/60"
+                                    : app.matchScore >= 40
+                                    ? "text-amber-400 bg-amber-950/40 border-amber-800/60"
+                                    : "text-zinc-500 bg-zinc-900 border-zinc-800"
+                                }`}>
+                                  {app.matchScore}%
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-2 text-xs text-zinc-400">
                               <Mail className="h-3.5 w-3.5 text-zinc-500" />
                               {app.candidate?.email || "No email provided"}
                             </div>
+                            {app.aiSummary && (
+                              <p className="text-[11px] text-zinc-500 italic pt-1 line-clamp-2">
+                                {app.aiSummary}
+                              </p>
+                            )}
                           </div>
 
                           <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-zinc-900">

@@ -3,6 +3,8 @@
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/require-auth";
 import { revalidatePath } from "next/cache";
+import { sendEmail } from "@/lib/send-email";
+import { interviewScheduledEmail } from "@/lib/email-templates";
 
 export async function scheduleInterviewAction(data: {
   applicationId: string;
@@ -26,7 +28,7 @@ export async function scheduleInterviewAction(data: {
 
     const currentApp = await prisma.jobApplication.findUnique({
       where: { id: data.applicationId },
-      include: { candidate: true }
+      include: { candidate: true, job: true }
     });
 
     await prisma.activityLog.create({
@@ -37,6 +39,17 @@ export async function scheduleInterviewAction(data: {
         details: `${data.round} scheduled for ${currentApp?.candidate.fullName} with ${data.interviewer}`,
       },
     });
+
+    if (currentApp) {
+      const { subject, html } = interviewScheduledEmail(
+        currentApp.candidate.fullName,
+        currentApp.job.title,
+        data.round,
+        data.interviewer,
+        new Date(data.scheduledAt)
+      );
+      await sendEmail(currentApp.candidate.email, subject, html);
+    }
 
     revalidatePath(`/dashboard/jobs/${data.jobId}`);
     return { success: "Interview scheduled successfully!" };

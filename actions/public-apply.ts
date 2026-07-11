@@ -2,6 +2,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { extractResumeText } from "@/lib/parse-resume";
+import { scoreResumeAgainstJob } from "@/lib/score-resume";
 
 const ApplicationSchema = z.object({
   jobId: z.string().min(1, "Job ID is required"),
@@ -12,7 +14,7 @@ const ApplicationSchema = z.object({
 
 export async function submitApplicationAction(values: z.infer<typeof ApplicationSchema>) {
   const validatedFields = ApplicationSchema.safeParse(values);
-  
+
   if (!validatedFields.success) {
     return { error: "Please fill out all fields correctly." };
   }
@@ -20,15 +22,12 @@ export async function submitApplicationAction(values: z.infer<typeof Application
   const { jobId, candidateName, candidateEmail, resumeUrl } = validatedFields.data;
 
   try {
-    const jobExists = await prisma.job.findUnique({
-      where: { id: jobId },
-    });
+    const job = await prisma.job.findUnique({ where: { id: jobId } });
 
-    if (!jobExists) {
+    if (!job) {
       return { error: "This job posting is no longer active." };
     }
 
-    // Check if this applicant has already applied to this specific job
     const existingApplication = await prisma.jobApplication.findFirst({
       where: {
         jobId,
@@ -40,10 +39,28 @@ export async function submitApplicationAction(values: z.infer<typeof Application
       return { error: "You have already submitted an application for this job opening." };
     }
 
-    // Use connectOrCreate to gracefully handle new vs returning candidates 
-    await (prisma.jobApplication.create as any)({
+    // Best-effort resume scoring — never blocks submission if it fails
+    let matchScore: number | null = null;
+    let aiSummary: string | null = null;
+
+    if (resumeUrl) {
+      try {
+        const resumeText = await extractResumeText(resumeUrl);
+        const score = await scoreResumeAgainstJob(resumeText, job.title, job.description ?? "");
+        if (score) {
+          matchScore = score.matchScore;
+          aiSummary = score.summary;
+        }
+      } catch (scoringError) {
+        console.error("Resume scoring failed, continuing without it:", scoringError);
+      }
+    }
+
+    await prisma.jobApplication.create({
       data: {
         stage: "APPLIED",
+        matchScore,
+        aiSummary,
         job: {
           connect: { id: jobId }
         },

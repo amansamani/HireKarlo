@@ -3,6 +3,8 @@
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/require-auth";
 import { revalidatePath } from "next/cache";
+import { sendEmail } from "@/lib/send-email";
+import { stageChangeEmail } from "@/lib/email-templates";
 
 export async function getJobApplicantsAction(jobId: string) {
   const userId = await requireAuth();
@@ -33,7 +35,7 @@ export async function updateApplicationStatusAction(applicationId: string, statu
   try {
     const currentApp = await prisma.jobApplication.findUnique({
       where: { id: applicationId },
-      include: { candidate: true }
+      include: { candidate: true, job: true }
     });
 
     if (!currentApp) return { error: "Application not found" };
@@ -51,6 +53,9 @@ export async function updateApplicationStatusAction(applicationId: string, statu
         details: `${currentApp.candidate.fullName} shifted from ${currentApp.stage} to ${status}`
       }
     });
+
+    const { subject, html } = stageChangeEmail(currentApp.candidate.fullName, currentApp.job.title, status);
+    await sendEmail(currentApp.candidate.email, subject, html);
 
     revalidatePath(`/dashboard/jobs/${jobId}`);
     return { success: `Candidate moved to ${status}` };
