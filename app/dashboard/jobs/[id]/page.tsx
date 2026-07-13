@@ -173,7 +173,7 @@ export default function JobDetailsPage({ params }: { params: Promise<{ id: strin
               return (
                 <div
                   key={stage.key}
-                  className="min-h-[400px] w-[80vw] shrink-0 snap-start space-y-4 rounded-xl border border-border bg-card p-4 sm:w-[45vw] lg:w-auto"
+                  className="min-h-[400px] w-[80vw] min-w-0  shrink-0 snap-start space-y-4 rounded-xl border border-border bg-card p-4 sm:w-[45vw] lg:w-auto"
                 >
                   <div className="flex items-center justify-between border-b border-border pb-2">
                     <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${stage.color}`}>
@@ -193,17 +193,17 @@ export default function JobDetailsPage({ params }: { params: Promise<{ id: strin
                       stageApplicants.map((app) => (
                         <div
                           key={app.id}
-                          className="space-y-3 rounded-lg border border-border bg-background/60 p-3.5 shadow-sm transition-colors hover:border-primary/40"
+                          className="space-y-3 overflow-hidden rounded-lg border border-border bg-background/60 p-3.5 shadow-sm transition-colors hover:border-primary/40"
                         >
                           <div className="space-y-1">
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                                 <User className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-                                {app.candidate?.fullName || "Unnamed Candidate"}
+                                <span className="truncate">{app.candidate?.fullName || "Unnamed Candidate"}</span>
                               </div>
                               {typeof app.matchScore === "number" && (
                                 <span
-                                  className={`rounded-full border px-1.5 py-0.5 font-mono text-[10px] font-semibold ${
+                                  className={`shrink-0 rounded-full border px-1.5 py-0.5 font-mono text-[10px] font-semibold ${
                                     app.matchScore >= 70
                                       ? "border-success/30 bg-success/10 text-success"
                                       : app.matchScore >= 40
@@ -217,7 +217,7 @@ export default function JobDetailsPage({ params }: { params: Promise<{ id: strin
                             </div>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
                               <Mail className="h-3.5 w-3.5" aria-hidden="true" />
-                              {app.candidate?.email || "No email provided"}
+                              <span className="truncate">{app.candidate?.email || "No email provided"}</span>
                             </div>
                             {app.aiSummary && (
                               <p className="line-clamp-2 pt-1 text-[11px] italic text-muted-foreground">
