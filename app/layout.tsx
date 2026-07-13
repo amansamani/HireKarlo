@@ -7,7 +7,7 @@ import type { Metadata, Viewport } from "next";
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://berozgaar-amansamanis-projects.vercel.app"),
+  metadataBase: new URL("https://hiretrack.amansamani.me"),
   title: {
     default: "HireTrack — AI-powered hiring pipeline",
     template: "%s | HireTrack",
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     title: "HireTrack — AI-powered hiring pipeline",
     description:
       "Post a job, share one link, and let HireTrack parse and score every applicant's resume automatically.",
-    url: "https://berozgaar-amansamanis-projects.vercel.app",
+    url: "https://hiretrack.amansamani.me",
     siteName: "HireTrack",
     type: "website",
     images: [
@@ -30,6 +30,7 @@ export const metadata: Metadata = {
       },
     ],
   },
+
   twitter: {
     card: "summary_large_image",
     title: "HireTrack — AI-powered hiring pipeline",
