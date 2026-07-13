@@ -3,9 +3,12 @@
 import { useState, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Briefcase, MapPin, Building2, AlignLeft, Loader2, Clock } from "lucide-react";
+import { ArrowLeft, Briefcase, MapPin, Building2, AlignLeft, Loader2, Clock, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { createJobAction } from "@/actions/create-job";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 
 export default function CreateJobPage() {
   const router = useRouter();
@@ -22,89 +25,120 @@ export default function CreateJobPage() {
     setLoading(true);
 
     startTransition(async () => {
-      const res = await createJobAction({
-        title,
-        department,
-        location,
-        type,
-        description,
-      });
+      const res = await createJobAction({ title, department, location, type, description });
 
       setLoading(false);
       if (res.error) {
         toast.error(res.error);
       } else {
         toast.success(res.success);
-        router.push("/dashboard/jobs"); // Redirect back to pool page
+        router.push("/dashboard/jobs");
       }
     });
   }
 
   return (
-    <div className="space-y-6 text-zinc-100 max-w-xl mx-auto">
-      {/* Navigation Header */}
+    <div className="mx-auto max-w-xl space-y-6">
       <div className="flex items-center gap-4">
-        <Link href="/dashboard/jobs" className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-zinc-100 transition-colors">
-          <ArrowLeft className="h-4 w-4" />
+        <Link
+          href="/dashboard/jobs"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:text-foreground"
+          aria-label="Back to job openings"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         </Link>
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">Create New Position</h2>
-          <p className="text-sm text-zinc-400">Deploy a new open listing to your public application framework.</p>
+          <p className="text-sm text-muted-foreground">Publish a new opening to your public application link.</p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="border border-zinc-850 bg-zinc-900/20 rounded-xl p-5 space-y-4 shadow-xl">
+      <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-border bg-card p-5 shadow-sm">
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
-            <Briefcase className="h-3 w-3 text-zinc-500" /> Job Title
+          <label htmlFor="job-title" className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <Briefcase className="h-3 w-3" aria-hidden="true" /> Job Title
           </label>
-          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g., MERN Stack Engineer" className="w-full text-xs px-3 py-2 border border-zinc-800 bg-zinc-950 rounded-md text-zinc-200 focus:outline-none focus:border-zinc-700" required />
+          <Input
+            id="job-title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g., MERN Stack Engineer"
+            required
+          />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
-              <Building2 className="h-3 w-3 text-zinc-500" /> Department
+            <label htmlFor="job-department" className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <Building2 className="h-3 w-3" aria-hidden="true" /> Department
             </label>
-            <input type="text" value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="e.g., Engineering" className="w-full text-xs px-3 py-2 border border-zinc-800 bg-zinc-950 rounded-md text-zinc-200 focus:outline-none focus:border-zinc-700" required />
+            <Input
+              id="job-department"
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              placeholder="e.g., Engineering"
+              required
+            />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
-              <MapPin className="h-3 w-3 text-zinc-500" /> Location
+            <label htmlFor="job-location" className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <MapPin className="h-3 w-3" aria-hidden="true" /> Location
             </label>
-            <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g., Gorakhpur, UP" className="w-full text-xs px-3 py-2 border border-zinc-800 bg-zinc-950 rounded-md text-zinc-200 focus:outline-none focus:border-zinc-700" required />
+            <Input
+              id="job-location"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="e.g., Gorakhpur, UP"
+              required
+            />
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
-            <Clock className="h-3 w-3 text-zinc-500" /> Employment Type
+          <label htmlFor="job-type" className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <Clock className="h-3 w-3" aria-hidden="true" /> Employment Type
           </label>
-          <select value={type} onChange={(e) => setType(e.target.value)} className="w-full text-xs px-3 py-2 border border-zinc-800 bg-zinc-950 rounded-md text-zinc-200 focus:outline-none focus:border-zinc-700 color-scheme-dark">
-            <option value="Full-time">Full-time</option>
-            <option value="Part-time">Part-time</option>
-            <option value="Remote">Remote</option>
-            <option value="Contract">Contract</option>
-          </select>
+          <div className="relative">
+            <select
+              id="job-type"
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+              className="h-8 w-full appearance-none rounded-lg border border-input bg-transparent px-2.5 pr-8 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+            >
+              <option value="Full-time">Full-time</option>
+              <option value="Part-time">Part-time</option>
+              <option value="Remote">Remote</option>
+              <option value="Contract">Contract</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          </div>
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
-            <AlignLeft className="h-3 w-3 text-zinc-500" /> Role Summary / Description
+          <label htmlFor="job-description" className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <AlignLeft className="h-3 w-3" aria-hidden="true" /> Role Summary / Description
           </label>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Provide information regarding expectations, skills requirement..." rows={4} className="w-full text-xs px-3 py-2 border border-zinc-800 bg-zinc-950 rounded-md text-zinc-200 focus:outline-none focus:border-zinc-700 resize-none" required />
+          <Textarea
+            id="job-description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Provide information regarding expectations, skills requirement..."
+            rows={4}
+            className="resize-none"
+            required
+          />
         </div>
 
-        <button type="submit" disabled={loading} className="w-full h-9 bg-zinc-100 hover:bg-zinc-200 text-zinc-900 text-xs font-semibold rounded-md transition-colors flex items-center justify-center gap-2 mt-2 disabled:opacity-50">
+        <Button type="submit" disabled={loading} className="mt-2 w-full gap-2 text-xs font-semibold">
           {loading ? (
             <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Publishing Position...
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Publishing Position...
             </>
           ) : (
             "Publish Opening"
           )}
-        </button>
+        </Button>
       </form>
     </div>
   );

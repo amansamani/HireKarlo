@@ -7,12 +7,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import Link from "next/link";
+import { KanbanSquare, Sparkles, MailCheck } from "lucide-react";
 
 import { loginAction } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { AuthBrandPanel } from "@/components/layout/auth-brand-panel";
 
 const LoginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -38,18 +39,29 @@ export default function LoginPage() {
     } else {
       toast.success("Welcome back!");
       router.push("/dashboard");
-      router.refresh(); 
+      router.refresh();
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-950 p-4 selection:bg-zinc-800">
-      <Card className="w-full max-w-md border-zinc-800 bg-zinc-900 text-zinc-100 shadow-2xl">
-        <CardHeader className="space-y-1.5 text-center">
-          <CardTitle className="text-2xl font-semibold tracking-tight">Welcome back</CardTitle>
-          <CardDescription className="text-zinc-400">Sign in to manage your hiring pipeline</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div className="grid min-h-dvh grid-cols-1 lg:grid-cols-2">
+      <AuthBrandPanel
+        heading="Welcome back to your pipeline"
+        subheading="Every candidate, scored and sorted, waiting where you left them."
+        points={[
+          { icon: KanbanSquare, text: "Kanban pipeline across every open role" },
+          { icon: Sparkles, text: "AI match scores on every resume" },
+          { icon: MailCheck, text: "Candidates notified automatically" },
+        ]}
+      />
+
+      <div className="flex items-center justify-center p-4 sm:p-8">
+        <div className="w-full max-w-md space-y-6">
+          <div className="space-y-1.5 text-center lg:text-left">
+            <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
+            <p className="text-sm text-muted-foreground">Access your hiring dashboard.</p>
+          </div>
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
@@ -57,11 +69,11 @@ export default function LoginPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-zinc-300">Email Address</FormLabel>
+                    <FormLabel>Email Address</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="recruiter@company.com" {...field} className="border-zinc-800 bg-zinc-950 text-zinc-100 focus-visible:ring-zinc-700" disabled={isLoading} />
+                      <Input type="email" placeholder="recruiter@company.com" {...field} disabled={isLoading} />
                     </FormControl>
-                    <FormMessage className="text-red-400" />
+                    <FormMessage />
                   </FormItem>
                 )}
               />
@@ -70,27 +82,28 @@ export default function LoginPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-zinc-300">Password</FormLabel>
+                    <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} className="border-zinc-800 bg-zinc-950 text-zinc-100 focus-visible:ring-zinc-700" disabled={isLoading} />
+                      <Input type="password" placeholder="••••••••" {...field} disabled={isLoading} />
                     </FormControl>
-                    <FormMessage className="text-red-400" />
+                    <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full bg-zinc-100 text-zinc-900 hover:bg-zinc-200 transition-colors" disabled={isLoading}>
+              <Button type="submit" className="h-10 w-full font-semibold" disabled={isLoading}>
                 {isLoading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
           </Form>
-          <div className="mt-4 text-center text-sm text-zinc-400">
+
+          <p className="text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{" "}
-            <Link href="/register" className="text-zinc-200 hover:underline underline-offset-4">
+            <Link href="/register" className="font-medium text-primary hover:underline underline-offset-4">
               Sign up
             </Link>
-          </div>
-        </CardContent>
-      </Card>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

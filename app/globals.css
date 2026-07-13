@@ -27,6 +27,11 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -48,73 +53,66 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-}
-
+/*
+  HireTrack is a dark-only product (every screen already assumed a dark
+  canvas). Rather than fight that with an unused light theme, this file
+  makes the dark palette the single source of truth and layers on one
+  deliberate brand accent: lime-on-black, kept for CTAs, focus states,
+  and active nav — not painted across every surface.
+*/
+:root,
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
+  --background: oklch(0.14 0.004 285.82);
+  --foreground: oklch(0.97 0.001 286.38);
+
+  --card: oklch(0.19 0.005 285.9);
+  --card-foreground: oklch(0.97 0.001 286.38);
+
+  --popover: oklch(0.19 0.005 285.9);
+  --popover-foreground: oklch(0.97 0.001 286.38);
+
+  /* Brand accent — lime on black, used sparingly */
+  --primary: oklch(0.89 0.24 128);
+  --primary-foreground: oklch(0.15 0.01 128);
+
+  --secondary: oklch(0.27 0.006 285.9);
+  --secondary-foreground: oklch(0.97 0.001 286.38);
+
+  --muted: oklch(0.23 0.006 285.9);
+  --muted-foreground: oklch(0.72 0.006 286);
+
+  --accent: oklch(0.27 0.006 285.9);
+  --accent-foreground: oklch(0.97 0.001 286.38);
+
+  --destructive: oklch(0.65 0.2 24);
+  --destructive-foreground: oklch(0.15 0.02 24);
+
+  --success: oklch(0.72 0.17 155);
+  --success-foreground: oklch(0.15 0.02 155);
+
+  --warning: oklch(0.79 0.16 75);
+  --warning-foreground: oklch(0.15 0.02 75);
+
   --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.89 0.24 128 / 55%);
+
+  --chart-1: oklch(0.89 0.24 128);
+  --chart-2: oklch(0.65 0.18 260);
+  --chart-3: oklch(0.79 0.16 75);
+  --chart-4: oklch(0.72 0.17 155);
+  --chart-5: oklch(0.65 0.2 24);
+
+  --radius: 0.75rem;
+
+  --sidebar: oklch(0.12 0.004 285.82);
+  --sidebar-foreground: oklch(0.97 0.001 286.38);
+  --sidebar-primary: oklch(0.89 0.24 128);
+  --sidebar-primary-foreground: oklch(0.15 0.01 128);
+  --sidebar-accent: oklch(0.23 0.006 285.9);
+  --sidebar-accent-foreground: oklch(0.97 0.001 286.38);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.89 0.24 128 / 55%);
 }
 
 @layer base {
@@ -123,8 +121,39 @@
   }
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
   html {
     @apply font-sans;
+    color-scheme: dark;
+  }
+  ::selection {
+    background-color: color-mix(in oklch, var(--primary), transparent 65%);
+  }
+}
+
+@layer utilities {
+  /* Visually-hidden until focused — used for the skip-to-content link */
+  .skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 1rem;
+    z-index: 100;
+  }
+  .skip-link:focus {
+    left: 1rem;
+  }
+
+  .brand-glow {
+    box-shadow: 0 0 0 1px color-mix(in oklch, var(--primary), transparent 70%),
+      0 8px 30px -10px color-mix(in oklch, var(--primary), transparent 55%);
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
   }
 }
