@@ -21,9 +21,7 @@ export default function Home() {
         <header className="sticky top-0 z-30 border-b border-border/60 bg-background/80 backdrop-blur-md">
           <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
             <Link href="/" className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-                H
-              </span>
+              <img src="/logo.webp" alt="HireKarlo Logo" className="h-7 w-auto object-contain" />
               <span className="font-semibold tracking-tight">HireKarlo</span>
             </Link>
             <div className="flex items-center gap-2">
