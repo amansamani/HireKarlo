@@ -4,7 +4,7 @@ import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import type { Metadata, Viewport } from "next";
 import {Pinyon_Script } from "next/font/google";
-
+import { Analytics } from "@vercel/analytics/next"
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 const pinyonScript = Pinyon_Script({ subsets: ["latin"], weight: "400", variable: "--font-script" });
