@@ -39,7 +39,6 @@ export async function submitApplicationAction(values: z.infer<typeof Application
       return { error: "You have already submitted an application for this job opening." };
     }
 
-    // Best-effort resume scoring — never blocks submission if it fails
     let matchScore: number | null = null;
     let aiSummary: string | null = null;
 
@@ -56,9 +55,6 @@ export async function submitApplicationAction(values: z.infer<typeof Application
       }
     }
 
-    // Upsert (not connectOrCreate) so a returning candidate's name/resume stay
-    // current, and scoped to this job's recruiter so the same email applying
-    // to a different company on HireTrack doesn't share one candidate record.
     const candidate = await prisma.candidate.upsert({
       where: { email_recruiterId: { email: candidateEmail, recruiterId: job.userId } },
       create: {
