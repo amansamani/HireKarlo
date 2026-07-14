@@ -8,6 +8,7 @@ import {
   Link2,
   ShieldCheck,
 } from "lucide-react";
+import { Analytics } from "@vercel/analytics/next"
 
 export default function Home() {
   return (
