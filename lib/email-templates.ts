@@ -60,6 +60,23 @@ export function stageChangeEmail(candidateName: string, jobTitle: string, newSta
   };
 }
 
+export function applicationOtpEmail(otp: string, jobTitle: string) {
+  return {
+    subject: `Your verification code: ${otp}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: auto; padding: 24px; color: #18181b;">
+        <h2 style="margin-bottom: 4px;">Verify your email</h2>
+        <p style="color: #52525b; line-height: 1.6;">Use this code to confirm your email address before applying for <strong>${jobTitle}</strong>:</p>
+        <div style="margin: 24px 0; text-align: center;">
+          <span style="display: inline-block; background: #f4f4f5; border-radius: 8px; padding: 14px 28px; font-size: 28px; font-weight: 700; letter-spacing: 6px;">${otp}</span>
+        </div>
+        <p style="color: #a1a1aa; font-size: 12px; line-height: 1.6;">This code expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
+        <p style="color: #a1a1aa; font-size: 12px; margin-top: 32px;">— The Hiring Team</p>
+      </div>
+    `,
+  };
+}
+
 export function interviewScheduledEmail(
   candidateName: string,
   jobTitle: string,

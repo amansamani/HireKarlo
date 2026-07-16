@@ -49,3 +49,26 @@ export async function updateJobStatusAction(jobId: string, status: "OPEN" | "CLO
     return { error: "Failed to update job status" };
   }
 }
+
+export async function deleteJobAction(jobId: string) {
+  const userId = await requireAuth();
+  if (!userId) return { error: "Unauthorized" };
+
+  try {
+    const job = await prisma.job.findUnique({ where: { id: jobId } });
+    if (!job || job.userId !== userId) {
+      return { error: "Job not found" };
+    }
+
+    // Cascades per schema: JobApplication rows (and their Interviews) for this
+    // job are deleted along with it; ActivityLog rows have their applicationId
+    // set to null instead of being deleted, so audit history is preserved.
+    await prisma.job.delete({ where: { id: jobId } });
+
+    revalidatePath("/dashboard/jobs");
+    return { success: `"${job.title}" deleted.` };
+  } catch (error) {
+    console.error("Failed to delete job:", error);
+    return { error: "Failed to delete job." };
+  }
+}

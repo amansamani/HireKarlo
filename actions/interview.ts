@@ -51,7 +51,11 @@ export async function scheduleInterviewAction(data: {
       data.interviewer,
       new Date(data.scheduledAt)
     );
-    await sendEmail(currentApp.candidate.email, subject, html);
+    try {
+      await sendEmail(currentApp.candidate.email, subject, html);
+    } catch (emailError) {
+      console.error("[scheduleInterviewAction] interview scheduled OK but notification email failed:", emailError);
+    }
 
     revalidatePath(`/dashboard/jobs/${data.jobId}`);
     return { success: "Interview scheduled successfully!" };

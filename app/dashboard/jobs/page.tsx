@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { MapPin, Briefcase, Users, ArrowRight, Plus, Loader2 } from "lucide-react";
-import { getAllJobsAction, updateJobStatusAction } from "@/actions/jobs-pool";
+import { MapPin, Briefcase, Users, ArrowRight, Plus, Loader2, Trash2, X } from "lucide-react";
+import { getAllJobsAction, updateJobStatusAction, deleteJobAction } from "@/actions/jobs-pool";
 import { Button } from "@/components/ui/button";
 
 type GlobalJob = {
@@ -35,6 +35,8 @@ export default function JobsPoolPage() {
   const [jobs, setJobs] = useState<GlobalJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadJobs() {
@@ -61,6 +63,20 @@ export default function JobsPoolPage() {
       toast.success(nextStatus === "OPEN" ? "Job reopened — accepting applicants again." : "Job closed — public link no longer accepts applicants.");
     }
     setUpdatingId(null);
+  }
+
+  async function deleteJob(job: GlobalJob) {
+    setDeletingId(job.id);
+    const res = await deleteJobAction(job.id);
+    setDeletingId(null);
+    setConfirmingDeleteId(null);
+
+    if (res.error) {
+      toast.error(res.error);
+    } else {
+      setJobs((current) => current.filter((j) => j.id !== job.id));
+      toast.success(res.success || "Job deleted.");
+    }
   }
 
   return (
@@ -131,6 +147,39 @@ export default function JobsPoolPage() {
                   <span className="text-xs font-bold text-foreground">{job._count.applications}</span>
                   <span className="text-[10px] font-medium text-muted-foreground">Applicants</span>
                 </div>
+
+                {confirmingDeleteId === job.id ? (
+                  <div className="flex items-center gap-1.5 rounded-lg border border-destructive/30 bg-destructive/10 px-2 py-1">
+                    <span className="text-[11px] font-medium text-destructive">Delete this job?</span>
+                    <button
+                      type="button"
+                      onClick={() => deleteJob(job)}
+                      disabled={deletingId === job.id}
+                      className="rounded-md bg-destructive px-2 py-1 text-[11px] font-semibold text-destructive-foreground hover:opacity-90 disabled:opacity-60"
+                    >
+                      {deletingId === job.id ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : "Delete"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingDeleteId(null)}
+                      disabled={deletingId === job.id}
+                      className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                      aria-label="Cancel delete"
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingDeleteId(job.id)}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
+                    aria-label={`Delete ${job.title}`}
+                    title="Delete job"
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                )}
 
                 <Link href={`/dashboard/jobs/${job.id}`}>
                   <Button size="sm" className="gap-1.5 text-xs font-semibold">

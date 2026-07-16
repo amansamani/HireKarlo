@@ -6,9 +6,12 @@ import { requireAuth } from "@/lib/require-auth";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/lib/send-email";
 import { stageChangeEmail } from "@/lib/email-templates";
+import { extractResumeText } from "@/lib/parse-resume";
+import { scoreResumeAgainstJob } from "@/lib/score-resume";
 
-const STAGES = ["APPLIED", "SCREENING", "TECHNICAL", "HR", "OFFER", "HIRED", "REJECTED"] as const;
-const StageSchema = z.enum(STAGES);
+// Stage is dynamic per job now (recruiter-defined rounds), so we validate
+// shape/safety rather than a fixed set of values.
+const StageSchema = z.string().trim().min(1).max(60);
 
 export async function getJobApplicantsAction(jobId: string) {
   const userId = await requireAuth();
@@ -17,6 +20,7 @@ export async function getJobApplicantsAction(jobId: string) {
   try {
     const job = await prisma.job.findUnique({ where: { id: jobId } });
     if (!job || job.userId !== userId) {
+      console.error(`[getJobApplicantsAction] job ${jobId} owner=${job?.userId ?? "MISSING"} but session userId=${userId} — mismatch or job not found.`);
       return { error: "Unauthorized", applications: [] };
     }
 
@@ -32,7 +36,7 @@ export async function getJobApplicantsAction(jobId: string) {
       orderBy: { createdAt: "desc" },
     });
 
-    return { applications, activityLogs };
+    return { job, applications, activityLogs };
   } catch (error) {
     console.error("Fetch error detail:", error);
     return { error: "Failed to fetch applicants", applications: [], activityLogs: [] };
@@ -57,7 +61,8 @@ export async function updateApplicationStatusAction(applicationId: string, statu
 
     await prisma.jobApplication.update({
       where: { id: applicationId },
-      data: { stage: parsedStage.data },
+      // Fixed: Bypassed type strictness for dynamic string stages
+      data: { stage: parsedStage.data as any },
     });
 
     await prisma.activityLog.create({
@@ -70,12 +75,59 @@ export async function updateApplicationStatusAction(applicationId: string, statu
     });
 
     const { subject, html } = stageChangeEmail(currentApp.candidate.fullName, currentApp.job.title, status);
-    await sendEmail(currentApp.candidate.email, subject, html);
+    try {
+      await sendEmail(currentApp.candidate.email, subject, html);
+    } catch (emailError) {
+      console.error("[updateApplicationStatusAction] stage updated OK but notification email failed:", emailError);
+    }
 
     revalidatePath(`/dashboard/jobs/${jobId}`);
     return { success: `Candidate moved to ${status}` };
   } catch (error) {
     console.error("Update error detail:", error);
     return { error: "Failed to update pipeline stage" };
+  }
+}
+
+export async function rescoreApplicationAction(applicationId: string, jobId: string) {
+  const userId = await requireAuth();
+  if (!userId) return { error: "Unauthorized" };
+
+  // Scoring silently no-ops (returns null, just a server-side console.error)
+  // when misconfigured or when the AI call fails — by design, so a scoring
+  // hiccup never blocks a candidate's submission. That means recruiters get
+  // no signal at all when it's missing. Surface the specific reason here,
+  // where a human is actually asking for it.
+  if (!process.env.GEMINI_API_KEY) {
+    return { error: "AI scoring isn't configured on the server (GEMINI_API_KEY is missing)." };
+  }
+
+  try {
+    const app = await prisma.jobApplication.findUnique({
+      where: { id: applicationId },
+      include: { candidate: true, job: true },
+    });
+
+    if (!app) return { error: "Application not found" };
+    if (app.job.userId !== userId) return { error: "Unauthorized" };
+    if (!app.candidate.resumeUrl) return { error: "This candidate has no resume on file to score." };
+
+    const resumeText = await extractResumeText(app.candidate.resumeUrl);
+    const score = await scoreResumeAgainstJob(resumeText, app.job.title, app.job.description ?? "");
+
+    if (!score) {
+      return { error: "Scoring failed — check the server terminal for the exact reason (AI API error, unreadable resume, etc)." };
+    }
+
+    await prisma.jobApplication.update({
+      where: { id: applicationId },
+      data: { matchScore: score.matchScore, aiSummary: score.summary },
+    });
+
+    revalidatePath(`/dashboard/jobs/${jobId}`);
+    return { success: "Resume scored.", matchScore: score.matchScore, aiSummary: score.summary };
+  } catch (error) {
+    console.error("[rescoreApplicationAction] failed:", error);
+    return { error: "Failed to score this resume." };
   }
 }

@@ -13,9 +13,13 @@ export async function createJobAction(data: {
   interviewRounds?: string[];
 }) {
   const userId = await requireAuth();
-  if (!userId) return { error: "Unauthorized" };
+  if (!userId) {
+    console.error("[createJobAction] no session/userId — auth() returned null. Check cookies/AUTH_SECRET.");
+    return { error: "Unauthorized" };
+  }
 
   if (!data.title || !data.department || !data.location) {
+    console.error("[createJobAction] validation failed, payload:", data);
     return { error: "Please fill out all required fields." };
   }
 
@@ -41,6 +45,10 @@ export async function createJobAction(data: {
     return { success: "Job position created successfully!", jobId: newJob.id };
   } catch (error) {
     console.error("Job creation error:", error);
-    return { error: "Failed to create job position." };
+    const detail =
+      process.env.NODE_ENV !== "production" && error instanceof Error
+        ? `Failed to create job position: ${error.message}`
+        : "Failed to create job position.";
+    return { error: detail };
   }
 }

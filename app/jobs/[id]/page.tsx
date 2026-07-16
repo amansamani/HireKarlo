@@ -1,20 +1,95 @@
 "use client";
 
-import { useState, startTransition, use } from "react";
+import { useState, startTransition, use, useRef } from "react";
 import { toast } from "sonner";
-import { CheckCircle2, User, Mail, UploadCloud, FileText, Loader2 } from "lucide-react";
-import { submitApplicationAction } from "@/actions/public-apply";
+import { CheckCircle2, User, Mail, UploadCloud, FileText, Loader2, ShieldCheck } from "lucide-react";
+import { submitApplicationAction, sendApplicationOtpAction, verifyApplicationOtpAction } from "@/actions/public-apply";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+const RESEND_COOLDOWN_SECONDS = 30;
 
 export default function PublicJobApplyPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: jobId } = use(params);
   const [submitted, setSubmitted] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ name?: string; email?: string }>({});
+
+  const [email, setEmail] = useState("");
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const cooldownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function resetEmailVerification() {
+    setEmailVerified(false);
+    setOtpSent(false);
+    setOtp("");
+  }
+
+  function handleEmailChange(value: string) {
+    setEmail(value);
+    // Any edit to an already-verified/pending email invalidates that
+    // verification — a new email needs its own code.
+    if (emailVerified || otpSent) resetEmailVerification();
+  }
+
+  function startCooldown() {
+    setResendCooldown(RESEND_COOLDOWN_SECONDS);
+    if (cooldownTimer.current) clearInterval(cooldownTimer.current);
+    cooldownTimer.current = setInterval(() => {
+      setResendCooldown((s) => {
+        if (s <= 1 && cooldownTimer.current) {
+          clearInterval(cooldownTimer.current);
+          cooldownTimer.current = null;
+        }
+        return Math.max(0, s - 1);
+      });
+    }, 1000);
+  }
+
+  async function handleSendOtp() {
+    if (!email || !email.includes("@")) {
+      setErrors((prev) => ({ ...prev, email: "Please provide a valid email address" }));
+      return;
+    }
+    setErrors((prev) => ({ ...prev, email: undefined }));
+    setSendingOtp(true);
+    const res = await sendApplicationOtpAction(email);
+    setSendingOtp(false);
+
+    if (res.error) {
+      toast.error(res.error);
+    } else {
+      setOtpSent(true);
+      startCooldown();
+      toast.success(res.success || "Verification code sent!");
+    }
+  }
+
+  async function handleVerifyOtp() {
+    if (otp.trim().length !== 6) {
+      toast.error("Enter the 6-digit code from your email.");
+      return;
+    }
+    setVerifyingOtp(true);
+    const res = await verifyApplicationOtpAction(email, otp.trim());
+    setVerifyingOtp(false);
+
+    if (res.error) {
+      toast.error(res.error);
+    } else {
+      setEmailVerified(true);
+      toast.success("Email verified!");
+    }
+  }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -50,46 +125,63 @@ export default function PublicJobApplyPage({ params }: { params: Promise<{ id: s
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-  e.preventDefault();
-  setErrors({});
+    e.preventDefault();
 
-  const formData = new FormData(e.currentTarget);
-  const name = formData.get("candidateName") as string;
-  const email = formData.get("candidateEmail") as string;
+    // Guards against the multi-tap double-submit: once a submit is already
+    // in flight, further clicks (or Enter-key repeats) are no-ops until it
+    // resolves — the button below is disabled too, but this covers any path
+    // that reaches handleSubmit directly.
+    if (submitting) return;
 
-  if (!name || name.length < 2) {
-    setErrors((prev) => ({ ...prev, name: "Name must be at least 2 characters" }));
-    return;
-  }
-  if (!email || !email.includes("@")) {
-    setErrors((prev) => ({ ...prev, email: "Please provide a valid email address" }));
-    return;
-  }
-  if (!uploadedUrl) {
-    toast.error("Please upload your resume before submitting.");
-    return;
-  }
+    setErrors({});
 
-  startTransition(async () => {
-    try {
-      const res = await submitApplicationAction({
-        jobId,
-        candidateName: name,
-        candidateEmail: email,
-        resumeUrl: uploadedUrl,
-      });
+    const formData = new FormData(e.currentTarget);
+    const name = formData.get("candidateName") as string;
 
-      if (res?.error) {
-        toast.error(res.error);
-      } else {
-        toast.success("Applied successfully!");
-        setSubmitted(true);
-      }
-    } catch (err) {
-      toast.error("Something went wrong submitting your application. Please try again.");
+    if (!name || name.length < 2) {
+      setErrors((prev) => ({ ...prev, name: "Name must be at least 2 characters" }));
+      return;
     }
-  });
-}
+    if (!email || !email.includes("@")) {
+      setErrors((prev) => ({ ...prev, email: "Please provide a valid email address" }));
+      return;
+    }
+    if (!emailVerified) {
+      toast.error("Please verify your email address first.");
+      return;
+    }
+    if (!uploadedUrl) {
+      toast.error("Please upload your resume before submitting.");
+      return;
+    }
+
+    setSubmitting(true);
+
+    startTransition(async () => {
+      try {
+        const res = await submitApplicationAction({
+          jobId,
+          candidateName: name,
+          candidateEmail: email,
+          resumeUrl: uploadedUrl,
+          otp,
+        });
+
+        if (res?.error) {
+          toast.error(res.error);
+          setSubmitting(false);
+        } else {
+          toast.success("Applied successfully!");
+          setSubmitted(true);
+          // no need to reset `submitting` — the success screen replaces the form
+        }
+      } catch (err) {
+        console.error("Application submission threw:", err);
+        toast.error("Something went wrong submitting your application. Please try again.");
+        setSubmitting(false);
+      }
+    });
+  }
 
   if (submitted) {
     return (
@@ -131,8 +223,67 @@ export default function PublicJobApplyPage({ params }: { params: Promise<{ id: s
                 <label htmlFor="candidateEmail" className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                   <Mail className="h-3 w-3" aria-hidden="true" /> Email Address
                 </label>
-                <Input id="candidateEmail" name="candidateEmail" type="email" placeholder="aman@example.com" required aria-invalid={!!errors.email} />
+                <div className="flex gap-2">
+                  <Input
+                    id="candidateEmail"
+                    name="candidateEmail"
+                    type="email"
+                    placeholder="aman@example.com"
+                    required
+                    value={email}
+                    onChange={(e) => handleEmailChange(e.target.value)}
+                    disabled={emailVerified}
+                    aria-invalid={!!errors.email}
+                    className="flex-1"
+                  />
+                  {emailVerified ? (
+                    <span className="flex shrink-0 items-center gap-1 rounded-md border border-success/30 bg-success/10 px-2.5 text-xs font-medium text-success">
+                      <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" /> Verified
+                    </span>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleSendOtp}
+                      disabled={sendingOtp || resendCooldown > 0}
+                      className="shrink-0 whitespace-nowrap text-xs"
+                    >
+                      {sendingOtp ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                      ) : resendCooldown > 0 ? (
+                        `Resend (${resendCooldown}s)`
+                      ) : otpSent ? (
+                        "Resend code"
+                      ) : (
+                        "Send OTP"
+                      )}
+                    </Button>
+                  )}
+                </div>
                 {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
+
+                {otpSent && !emailVerified && (
+                  <div className="flex gap-2 pt-1">
+                    <Input
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="6-digit code"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      className="flex-1 tracking-[0.3em]"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleVerifyOtp}
+                      disabled={verifyingOtp || otp.length !== 6}
+                      className="shrink-0 text-xs font-semibold"
+                    >
+                      {verifyingOtp ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : "Verify"}
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -171,8 +322,14 @@ export default function PublicJobApplyPage({ params }: { params: Promise<{ id: s
                 </div>
               </div>
 
-              <Button type="submit" disabled={uploading} className="mt-2 w-full font-semibold">
-                Submit Application
+              <Button type="submit" disabled={uploading || submitting} className="mt-2 w-full font-semibold">
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Submitting...
+                  </>
+                ) : (
+                  "Submit Application"
+                )}
               </Button>
             </form>
           </CardContent>
