@@ -13,7 +13,8 @@ export const authConfig = {
     },
     async session({ session, token }) {
       if (token && session.user) {
-        (session.user as any).id = token.id as string;
+        // Replaced "as any" with a structural interface cast to appease the linter
+        (session.user as { id: string }).id = token.id as string;
       }
       return session;
     },

@@ -14,6 +14,8 @@ export async function getJobsAction() {
     });
     return { jobs };
   } catch (error) {
+    // FIXED: Added console logging to use the error variable and satisfy the linter
+    console.error("[getJobsAction] Database fetch failure:", error);
     return { error: "Failed to fetch jobs", jobs: [] };
   }
 }

@@ -116,8 +116,10 @@ export default function PublicJobApplyPage({ params }: { params: Promise<{ id: s
       } else {
         throw new Error(data.error || "Upload failed");
       }
-    } catch (err: any) {
-      toast.error(err.message || "Failed to process resume upload.");
+    } catch (err) {
+      // FIXED: Safely typecast caught unknown error to standard Error mapping
+      const message = err instanceof Error ? err.message : "Failed to process resume upload.";
+      toast.error(message);
       setFileName(null);
     } finally {
       setUploading(false);

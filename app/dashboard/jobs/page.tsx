@@ -1,11 +1,10 @@
+import type { ComponentProps } from "react";
 import { getAllJobsAction } from "@/actions/jobs-pool";
 import JobsPoolClient from "./JobsPoolClient";
 
 export default async function JobsPoolPage() {
-  // Fetch initial data securely on the server side
   const res = await getAllJobsAction();
 
-  // Handle server-side errors before rendering the client engine
   if (res.error || !res.jobs) {
     return (
       <div className="mx-auto max-w-5xl space-y-6 p-8">
@@ -15,6 +14,9 @@ export default async function JobsPoolPage() {
     );
   }
 
-  // Pass clean, server-side validated data to the client component
-  return <JobsPoolClient initialJobs={res.jobs as any} />;
+  return (
+    <JobsPoolClient 
+      initialJobs={res.jobs as ComponentProps<typeof JobsPoolClient>["initialJobs"]} 
+    />
+  );
 }

@@ -76,10 +76,12 @@ export async function registerAction(values: z.infer<typeof RegisterSchema>) {
 
     return { success: "Account created! ..." };
     
-  } catch (error: any) {
+  } catch (error) {
     console.error("[registerAction] failed:", error);
 
-    if (error?.code === "P2002") {
+    // FIXED: Removed ': any' from catch block and applied structural casting to evaluate the error code safely
+    const prismaError = error as { code?: string };
+    if (prismaError?.code === "P2002") {
       return { error: "Email already in use!" };
     }
 

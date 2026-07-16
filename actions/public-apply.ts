@@ -37,8 +37,10 @@ export async function sendApplicationOtpAction(email: string) {
           data: { identifier, token: otp, expires: new Date(Date.now() + OTP_TTL_MS) },
         });
         created = true;
-      } catch (createError: any) {
-        if (createError?.code !== "P2002") throw createError;
+      } catch (createError) {
+        // FIXED: Checked type-safe properties using structural checking to satisfy linter
+        const prismaError = createError as { code?: string };
+        if (prismaError?.code !== "P2002") throw createError;
       }
     }
     if (!created) return { error: "Couldn't generate a code, please try again." };

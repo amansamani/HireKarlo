@@ -8,7 +8,7 @@ import { sendEmail } from "@/lib/send-email";
 import { stageChangeEmail } from "@/lib/email-templates";
 import { extractResumeText } from "@/lib/parse-resume";
 import { scoreResumeAgainstJob } from "@/lib/score-resume";
-
+import { ApplicationStage } from "@prisma/client";
 const StageSchema = z.string().trim().min(1).max(60);
 
 export async function getJobApplicantsAction(jobId: string) {
@@ -88,11 +88,10 @@ export async function updateApplicationStatusAction(applicationId: string, statu
     if (!currentApp) return { error: "Application not found" };
     if (currentApp.job.userId !== userId) return { error: "Unauthorized" };
 
-    // 4. Optimize: Use a transaction for atomic updates (both succeed or both fail)
     await prisma.$transaction([
       prisma.jobApplication.update({
         where: { id: applicationId },
-        data: { stage: parsedStage.data as any }, 
+        data: { stage: parsedStage.data as ApplicationStage },
       }),
       prisma.activityLog.create({
         data: {
@@ -120,7 +119,7 @@ export async function updateApplicationStatusAction(applicationId: string, statu
   } catch (error) {
     console.error("[updateApplicationStatusAction] Update error:", error);
     return { error: "Failed to update pipeline stage" };
-    }
+  }
 }
 
 export async function rescoreApplicationAction(applicationId: string, jobId: string) {
