@@ -210,6 +210,7 @@ export default function JobDetailsPage({ params }: { params: Promise<{ id: strin
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMounted(true);
   }, []);
 

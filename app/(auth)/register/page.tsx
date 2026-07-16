@@ -65,8 +65,10 @@ export default function RegisterPage() {
     resolver: zodResolver(RegisterSchema),
     defaultValues: { name: "", email: "", password: "" },
   });
-
+  
+  // eslint-disable-next-line react-hooks/incompatible-library
   const password = form.watch("password");
+ 
 
   async function onSubmit(values: z.infer<typeof RegisterSchema>) {
     setIsLoading(true);
