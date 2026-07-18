@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Calendar, Briefcase, Clock, UserCheck, Loader2 } from "lucide-react";
+import { Calendar, Briefcase, Clock, UserCheck, Loader2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getAllInterviewsAction } from "@/actions/interviews-pool";
+import { submitInterviewFeedbackAction } from "@/actions/interview";
 import { toast } from "sonner";
 
 type GlobalInterview = {
@@ -11,11 +12,132 @@ type GlobalInterview = {
   round: string;
   interviewer: string;
   scheduledAt: Date | string;
+  result: string | null;
+  rating: number | null;
+  feedback: string | null;
   application: {
     job: { title: string };
     candidate: { fullName: string; email: string };
   };
 };
+
+function ScorecardForm({
+  interview,
+  onSaved,
+}: {
+  interview: GlobalInterview;
+  onSaved: (id: string, result: string, rating: number, feedback: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [result, setResult] = useState<"PASSED" | "FAILED" | "PENDING">("PENDING");
+  const [rating, setRating] = useState(0);
+  const [feedback, setFeedback] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  // Already has a scorecard — show it read-only, tap to reopen/edit.
+  if (interview.result && !open) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setResult(interview.result as "PASSED" | "FAILED" | "PENDING");
+          setRating(interview.rating ?? 0);
+          setFeedback(interview.feedback ?? "");
+          setOpen(true);
+        }}
+        className="flex w-full items-center justify-between rounded-lg border border-border bg-background/60 p-2 text-left text-xs"
+      >
+        <span
+          className={`font-semibold ${
+            interview.result === "PASSED"
+              ? "text-success"
+              : interview.result === "FAILED"
+              ? "text-destructive"
+              : "text-muted-foreground"
+          }`}
+        >
+          {interview.result}
+        </span>
+        <span className="flex items-center gap-0.5 text-muted-foreground">
+          {interview.rating}/5 <Star className="h-3 w-3 fill-current" aria-hidden="true" />
+        </span>
+      </button>
+    );
+  }
+
+  if (!open) {
+    return (
+      <Button size="sm" variant="outline" className="w-full text-xs" onClick={() => setOpen(true)}>
+        Add feedback
+      </Button>
+    );
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-background/60 p-2.5">
+      <div className="flex gap-1.5">
+        {(["PASSED", "FAILED", "PENDING"] as const).map((r) => (
+          <button
+            key={r}
+            type="button"
+            onClick={() => setResult(r)}
+            className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+              result === r ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-muted-foreground"
+            }`}
+          >
+            {r}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex gap-0.5">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button key={n} type="button" onClick={() => setRating(n)} aria-label={`${n} star`}>
+            <Star className={`h-4 w-4 ${n <= rating ? "fill-current text-warning" : "text-muted-foreground"}`} aria-hidden="true" />
+          </button>
+        ))}
+      </div>
+
+      <textarea
+        value={feedback}
+        onChange={(e) => setFeedback(e.target.value)}
+        placeholder="Notes on the candidate's performance..."
+        className="w-full rounded-md border border-border bg-background p-2 text-xs"
+        rows={2}
+      />
+
+      <div className="flex justify-end gap-1.5">
+        <Button size="sm" variant="ghost" className="text-xs" onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          className="text-xs"
+          disabled={saving || rating === 0}
+          onClick={async () => {
+            setSaving(true);
+            const res = await submitInterviewFeedbackAction({
+              interviewId: interview.id,
+              result,
+              rating,
+              feedback,
+            });
+            setSaving(false);
+            if (res.error) {
+              toast.error(res.error);
+            } else {
+              toast.success("Feedback saved.");
+              onSaved(interview.id, result, rating, feedback);
+              setOpen(false);
+            }
+          }}
+        >
+          {saving && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />} Save
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export default function InterviewsPoolClient({
   initialInterviews,
@@ -36,12 +158,21 @@ export default function InterviewsPoolClient({
     if (res.error) {
       toast.error(res.error);
     } else {
-      setInterviews((current) => [...current, ...res.interviews]);
+      setInterviews((current) => [...current, ...(res.interviews as GlobalInterview[])]);
       setPage(nextPage);
       setHasMore(res.hasMore);
     }
     setIsLoadingMore(false);
   }, [page]);
+
+  const updateInterviewFeedback = useCallback(
+    (id: string, result: string, rating: number, feedback: string) => {
+      setInterviews((current) =>
+        current.map((i) => (i.id === id ? { ...i, result, rating, feedback } : i))
+      );
+    },
+    []
+  );
 
   if (interviews.length === 0) {
     return (
@@ -73,7 +204,10 @@ export default function InterviewsPoolClient({
           const dateStr = dateObj.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
 
           return (
-            <div key={interview.id} className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/40">
+            <div
+              key={interview.id}
+              className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/40"
+            >
               <div className="flex items-start justify-between border-b border-border pb-3">
                 <div className="space-y-0.5">
                   <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-medium tracking-wide text-primary">
@@ -89,9 +223,7 @@ export default function InterviewsPoolClient({
                     <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
                     {timeStr}
                   </div>
-                  <div className="font-mono text-[10px]">
-                    {dateStr}
-                  </div>
+                  <div className="font-mono text-[10px]">{dateStr}</div>
                 </div>
               </div>
 
@@ -112,6 +244,8 @@ export default function InterviewsPoolClient({
                   </div>
                 </div>
               </div>
+
+              <ScorecardForm interview={interview} onSaved={updateInterviewFeedback} />
             </div>
           );
         })}

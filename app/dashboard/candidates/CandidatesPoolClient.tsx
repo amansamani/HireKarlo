@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
-import { Search, User, Mail, Briefcase, FileDown, ExternalLink, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Search, User, Mail, Briefcase, FileDown, ExternalLink, Loader2, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { getAllCandidatesAction } from "@/actions/candidates-pool";
+import { getAllCandidatesAction, exportCandidatesCsvAction } from "@/actions/candidates-pool";
 import { toast } from "sonner";
 
 type GlobalCandidate = {
@@ -52,11 +52,34 @@ export default function CandidatesPoolClient({
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setIsSearching(true);
+      const res = await getAllCandidatesAction(1, searchQuery);
+      setIsSearching(false);
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      setCandidates(res.candidates as GlobalCandidate[]);
+      setPage(1);
+      setHasMore(res.hasMore);
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
 
   const loadMore = useCallback(async () => {
     setIsLoadingMore(true);
     const nextPage = page + 1;
-    const res = await getAllCandidatesAction(nextPage);
+    const res = await getAllCandidatesAction(nextPage, searchQuery);
     if (res.error) {
       toast.error(res.error);
     } else {
@@ -65,23 +88,24 @@ export default function CandidatesPoolClient({
       setHasMore(res.hasMore);
     }
     setIsLoadingMore(false);
-  }, [page]);
+  }, [page, searchQuery]);
 
-  // NOTE: search only filters candidates already loaded on the client — it
-  // does not query rows on later pages until "Load More" is used. Fine for
-  // now; if this becomes confusing, move search server-side (query param +
-  // reset page to 1 on each keystroke) instead of client filtering.
-  // OPTIMIZATION: Memoize the filtered list to prevent unnecessary re-calculations 
-  // if the component re-renders for other reasons.
-  const filteredCandidates = useMemo(() => {
-    if (!searchQuery) return candidates;
-    const lowerQuery = searchQuery.toLowerCase();
-    return candidates.filter(
-      (c) =>
-        c.fullName.toLowerCase().includes(lowerQuery) ||
-        c.email.toLowerCase().includes(lowerQuery)
-    );
-  }, [candidates, searchQuery]);
+  const handleExport = useCallback(async () => {
+    setIsExporting(true);
+    const res = await exportCandidatesCsvAction();
+    setIsExporting(false);
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    const blob = new Blob([res.csv!], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `candidates-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []); 
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -90,20 +114,26 @@ export default function CandidatesPoolClient({
         <p className="text-sm text-muted-foreground">Search and manage all applicants across every active opening.</p>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-        <Input
-          type="text"
-          placeholder="Search by candidate name or email..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="h-9 pl-9"
-          aria-label="Search candidates"
-        />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative max-w-sm flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <Input
+            type="text"
+            placeholder="Search by candidate name or email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-9 pl-9"
+            aria-label="Search candidates"
+          />
+          {isSearching && <Loader2 className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted-foreground" aria-hidden="true" />}
+        </div>
+        <Button variant="outline" size="sm" className="gap-1.5 text-xs font-semibold" onClick={handleExport} disabled={isExporting}>
+          {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Download className="h-3.5 w-3.5" aria-hidden="true" />}
+          Export CSV
+        </Button>
       </div>
 
-      {/* No loading state needed! Data is already here from the server. */}
-      {filteredCandidates.length === 0 ? (
+      {candidates.length === 0 ? (
         <div className="animate-in fade-in-0 zoom-in-95 rounded-xl border border-border bg-card/40 py-12 text-center duration-300">
           <p className="italic text-muted-foreground">
             {searchQuery ? "No candidates match your search query." : "No candidates found."}
@@ -113,7 +143,7 @@ export default function CandidatesPoolClient({
         <>
           {/* Mobile: card list */}
           <div className="space-y-3 sm:hidden">
-            {filteredCandidates.map((candidate, i) => {
+            {candidates.map((candidate, i) => {
               const latestApp = candidate.applications[0];
               return (
                 <div
@@ -162,7 +192,7 @@ export default function CandidatesPoolClient({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredCandidates.map((candidate, i) => {
+                {candidates.map((candidate, i) => {
                   const latestApp = candidate.applications[0];
                   return (
                     <tr

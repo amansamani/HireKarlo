@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useTransition, memo, useCallback } from "react";
+import { useState, useTransition, useEffect, useRef, memo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { MapPin, Briefcase, Users, ArrowRight, Plus, Loader2, Trash2, X } from "lucide-react";
+import { MapPin, Briefcase, Users, ArrowRight, Plus, Loader2, Trash2, X, Search } from "lucide-react";
 import { updateJobStatusAction, deleteJobAction, getAllJobsAction } from "@/actions/jobs-pool";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
-// --- STRICT TYPES ---
 type JobStatus = "OPEN" | "CLOSED" | "FILLED";
+type StatusFilter = JobStatus | "ALL";
 
 type GlobalJob = {
   id: string;
@@ -128,20 +129,43 @@ export default function JobsPoolClient({
   initialJobs: GlobalJob[];
   initialHasMore: boolean;
 }) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  
   const [jobs, setJobs] = useState<GlobalJob[]>(initialJobs);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [isSearching, setIsSearching] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Search/filter run server-side (jobs can span many pages) — every change
+  // resets to page 1 and replaces the list rather than appending.
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setIsSearching(true);
+      const res = await getAllJobsAction(1, searchQuery, statusFilter === "ALL" ? undefined : statusFilter);
+      setIsSearching(false);
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      setJobs(res.jobs as GlobalJob[]);
+      setPage(1);
+      setHasMore(res.hasMore);
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, statusFilter]);
 
   const loadMore = useCallback(async () => {
     setIsLoadingMore(true);
     const nextPage = page + 1;
-    const res = await getAllJobsAction(nextPage);
+    const res = await getAllJobsAction(nextPage, searchQuery, statusFilter === "ALL" ? undefined : statusFilter);
     if (res.error) {
       toast.error(res.error);
     } else {
@@ -150,7 +174,7 @@ export default function JobsPoolClient({
       setHasMore(res.hasMore);
     }
     setIsLoadingMore(false);
-  }, [page]);
+  }, [page, searchQuery, statusFilter]);
 
   // Memoized handlers protect against cache misses in child elements
   const toggleStatus = useCallback((job: GlobalJob) => {
@@ -238,6 +262,37 @@ export default function JobsPoolClient({
             <Plus className="h-4 w-4" aria-hidden="true" /> Create Position
           </Button>
         </Link>
+      </div>
+      
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative max-w-sm flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <Input
+            type="text"
+            placeholder="Search by title, department, location..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-9 pl-9"
+            aria-label="Search jobs"
+          />
+          {isSearching && <Loader2 className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted-foreground" aria-hidden="true" />}
+        </div>
+        <div className="flex gap-1.5">
+          {(["ALL", "OPEN", "CLOSED", "FILLED"] as StatusFilter[]).map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setStatusFilter(s)}
+              className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                statusFilter === s
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-border bg-background text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {s === "ALL" ? "All" : s.charAt(0) + s.slice(1).toLowerCase()}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3.5">

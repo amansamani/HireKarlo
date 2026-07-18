@@ -7,7 +7,7 @@ import { submitApplicationAction, sendApplicationOtpAction, verifyApplicationOtp
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-
+import Link from 'next/link'
 const RESEND_COOLDOWN_SECONDS = 30;
 
 export default function PublicJobApplyPage({ params }: { params: Promise<{ id: string }> }) {
@@ -105,6 +105,7 @@ export default function PublicJobApplyPage({ params }: { params: Promise<{ id: s
 
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("jobId", jobId);
 
     try {
       const response = await fetch("/api/upload", { method: "POST", body: formData });
@@ -174,6 +175,7 @@ export default function PublicJobApplyPage({ params }: { params: Promise<{ id: s
           setSubmitting(false);
         } else {
           toast.success("Applied successfully!");
+          <Link href="/track">Check your status anytime</Link>
           setSubmitted(true);
           // no need to reset `submitting` — the success screen replaces the form
         }

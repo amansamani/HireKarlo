@@ -1,0 +1,2 @@
+ALTER TABLE "Interview" ADD COLUMN "durationMinutes" INTEGER NOT NULL DEFAULT 60;
+ALTER TABLE "Interview" ADD COLUMN "reminderSentAt" TIMESTAMP(3);

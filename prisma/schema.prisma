@@ -158,18 +158,21 @@ model JobApplication {
 }
 
 model Interview {
-  id            String         @id @default(cuid())
-  applicationId String
-  application   JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  id              String         @id @default(cuid())
+  applicationId   String
+  application     JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   
-  round         String         // e.g., "Technical 1", "HR Round"
-  interviewer   String
-  scheduledAt   DateTime
-  feedback      String?
-  result        String?        // e.g., "PASSED", "FAILED", "PENDING"
+  round           String
+  interviewer     String
+  scheduledAt     DateTime
+  durationMinutes Int            @default(60)
+  feedback        String?
+  result          String?
+  rating          Int?
+  reminderSentAt  DateTime?
   
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 }
 
 model ActivityLog {

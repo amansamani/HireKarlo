@@ -10,8 +10,6 @@ export async function getAllInterviewsAction(page: number = 1) {
   if (!userId) return { error: "Unauthorized", interviews: [], hasMore: false };
 
   try {
-    // OPTIMIZATION: Use `select` instead of `include` for precise data fetching.
-    // This prevents fetching unnecessary columns and reduces network payload size.
     const rows = await prisma.interview.findMany({
       where: { application: { job: { userId } } },
       select: {
@@ -19,6 +17,9 @@ export async function getAllInterviewsAction(page: number = 1) {
         round: true,
         interviewer: true,
         scheduledAt: true,
+        result: true,
+        rating: true,
+        feedback: true,
         application: {
           select: {
             job: { select: { title: true } },
@@ -28,7 +29,7 @@ export async function getAllInterviewsAction(page: number = 1) {
       },
       orderBy: { scheduledAt: "asc" },
       skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE + 1, // one extra row = signal that a next page exists
+      take: PAGE_SIZE + 1,
     });
 
     const hasMore = rows.length > PAGE_SIZE;

@@ -7,15 +7,33 @@ import { Prisma } from "@prisma/client"; // Import Prisma namespace for error in
 
 const PAGE_SIZE = 20;
 
-export async function getAllJobsAction(page: number = 1) {
+export async function getAllJobsAction(
+  page: number = 1,
+  search: string = "",
+  statusFilter?: "OPEN" | "CLOSED" | "FILLED"
+) {
   const userId = await requireAuth();
   if (!userId) return { error: "Unauthorized", jobs: [], hasMore: false };
 
+  const trimmed = search.trim();
+
   try {
-    // Fetch one extra row past the page size — its presence tells us
-    // whether a next page exists without a separate COUNT query.
+    const where: Prisma.JobWhereInput = {
+      userId,
+      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(trimmed
+        ? {
+            OR: [
+              { title: { contains: trimmed, mode: "insensitive" } },
+              { department: { contains: trimmed, mode: "insensitive" } },
+              { location: { contains: trimmed, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    };
+    
     const rows = await prisma.job.findMany({
-      where: { userId },
+      where,
       select: {
         id: true,
         title: true,

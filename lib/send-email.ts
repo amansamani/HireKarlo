@@ -8,7 +8,9 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-export async function sendEmail(to: string, subject: string, html: string) {
+type Attachment = { filename: string; content: string; contentType: string };
+
+export async function sendEmail(to: string, subject: string, html: string, attachments?: Attachment[]) {
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
     throw new Error("EMAIL_USER / EMAIL_PASS missing in .env");
   }
@@ -18,5 +20,6 @@ export async function sendEmail(to: string, subject: string, html: string) {
     to,
     subject,
     html,
+    attachments,
   });
 }

@@ -12,22 +12,35 @@ const OTP_TTL_MS = 10 * 60 * 1000;
 const otpIdentifier = (email: string) => `apply-otp:${email.toLowerCase().trim()}`;
 
 const EmailSchema = z.string().trim().email("Please enter a valid email address.");
+const SEND_WINDOW_MS = 10 * 60 * 1000;
+
+const SEND_MAX = 3;
+const sendAttempts = new Map<string, number[]>();
+
+const VERIFY_MAX_ATTEMPTS = 5;
+const verifyAttempts = new Map<string, number>();
+
+function isSendRateLimited(identifier: string): boolean {
+  const now = Date.now();
+  const attempts = (sendAttempts.get(identifier) ?? []).filter((t) => now - t < SEND_WINDOW_MS);
+  attempts.push(now);
+  sendAttempts.set(identifier, attempts);
+  return attempts.length > SEND_MAX;
+}
 
 export async function sendApplicationOtpAction(email: string) {
   const parsed = EmailSchema.safeParse(email);
   if (!parsed.success) return { error: "Please enter a valid email address." };
 
   const identifier = otpIdentifier(parsed.data);
+  if (isSendRateLimited(identifier)) {
+    return { error: "Too many codes requested for this email. Try again in 10 minutes." };
+  }
 
   try {
-    // Only one live code per email at a time — clear any previous one first
-    // (VerificationToken's unique key is [identifier, token], not identifier
-    // alone, so a plain upsert can't target "whatever code this email has now").
+   
     await prisma.verificationToken.deleteMany({ where: { identifier } });
-
-    // `token` is globally @unique across ALL identifiers in this table, not
-    // just per-email — with a 6-digit space, two applicants requesting a
-    // code around the same moment can genuinely collide. Retry on that.
+    verifyAttempts.delete(identifier);
     let otp = "";
     let created = false;
     for (let attempt = 0; attempt < 5 && !created; attempt++) {
@@ -38,7 +51,6 @@ export async function sendApplicationOtpAction(email: string) {
         });
         created = true;
       } catch (createError) {
-        // FIXED: Checked type-safe properties using structural checking to satisfy linter
         const prismaError = createError as { code?: string };
         if (prismaError?.code !== "P2002") throw createError;
       }
@@ -56,22 +68,23 @@ export async function sendApplicationOtpAction(email: string) {
 }
 
 export async function verifyApplicationOtpAction(email: string, otp: string) {
-  const parsed = EmailSchema.safeParse(email);
-  if (!parsed.success) return { error: "Please enter a valid email address." };
-  if (!otp || otp.trim().length !== 6) return { error: "Enter the 6-digit code." };
+  const identifier = otpIdentifier(parsed.data);
+  const attempts = verifyAttempts.get(identifier) ?? 0;
+  if (attempts >= VERIFY_MAX_ATTEMPTS) {
+    return { error: "Too many incorrect attempts. Request a new code." };
+  }
 
   try {
-    // Peek only — don't consume yet. The real, authoritative check happens
-    // again in submitApplicationAction so a client that skips this call
-    // can't just fake "verified" and submit anyway.
     const record = await prisma.verificationToken.findFirst({
-      where: { identifier: otpIdentifier(parsed.data), token: otp.trim() },
+      where: { identifier, token: otp.trim() },
     });
 
     if (!record || record.expires < new Date()) {
+      verifyAttempts.set(identifier, attempts + 1);
       return { error: "That code is invalid or expired. Request a new one." };
     }
 
+    verifyAttempts.delete(identifier);
     return { success: "Email verified." };
   } catch (error) {
     console.error("[verifyApplicationOtpAction] failed:", error);
@@ -97,10 +110,7 @@ export async function submitApplicationAction(values: z.infer<typeof Application
   const { jobId, candidateName, candidateEmail, resumeUrl, otp } = validatedFields.data;
 
   try {
-    // Authoritative email-verification check. The earlier "verify" step only
-    // peeked at the code for instant UI feedback; this is where it's actually
-    // consumed, so a request that never went through OTP verification (or
-    // whose code has since expired/been reused) can't slip through.
+   
     const identifier = otpIdentifier(candidateEmail);
     const tokenRecord = await prisma.verificationToken.findFirst({ where: { identifier, token: otp } });
 
@@ -178,5 +188,37 @@ export async function submitApplicationAction(values: z.infer<typeof Application
   } catch (error) {
     console.error("Public submission error:", error);
     return { error: "An error occurred while submitting your application." };
+  }
+}
+
+export async function getApplicationStatusAction(email: string, otp: string) {
+  const parsed = EmailSchema.safeParse(email);
+  if (!parsed.success) return { error: "Please enter a valid email address." };
+  if (!otp || otp.trim().length !== 6) return { error: "Enter the 6-digit code." };
+
+  const identifier = otpIdentifier(parsed.data);
+
+  try {
+    const record = await prisma.verificationToken.findFirst({ where: { identifier, token: otp.trim() } });
+    if (!record || record.expires < new Date()) {
+      return { error: "That code is invalid or expired. Request a new one." };
+    }
+    // Consume it — status checks are one-shot per code, same as applying.
+    await prisma.verificationToken.delete({ where: { identifier_token: { identifier, token: otp.trim() } } }).catch(() => {});
+
+    const applications = await prisma.jobApplication.findMany({
+      where: { candidate: { email: parsed.data } },
+      select: {
+        stage: true,
+        appliedDate: true,
+        job: { select: { title: true, department: true } },
+      },
+      orderBy: { appliedDate: "desc" },
+    });
+
+    return { applications };
+  } catch (error) {
+    console.error("[getApplicationStatusAction] failed:", error);
+    return { error: "Couldn't load application status. Please try again." };
   }
 }

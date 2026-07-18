@@ -84,10 +84,8 @@ export function interviewScheduledEmail(
   interviewer: string,
   scheduledAt: Date
 ) {
-  const formattedDate = scheduledAt.toLocaleString("en-US", {
-    dateStyle: "full",
-    timeStyle: "short",
-  });
+  const formattedDate =
+    scheduledAt.toLocaleString("en-IN", { dateStyle: "full", timeStyle: "short", timeZone: "Asia/Kolkata" }) + " IST";
 
   return {
     subject: `Interview scheduled — ${jobTitle}`,
@@ -99,7 +97,34 @@ export function interviewScheduledEmail(
           <p style="margin: 4px 0;"><strong>When:</strong> ${formattedDate}</p>
           <p style="margin: 4px 0;"><strong>With:</strong> ${interviewer}</p>
         </div>
-        <p style="color: #52525b; line-height: 1.6;">We look forward to speaking with you.</p>
+        <p style="color: #52525b; line-height: 1.6;">A calendar invite is attached. We look forward to speaking with you.</p>
+        <p style="color: #a1a1aa; font-size: 12px; margin-top: 32px;">— The Hiring Team</p>
+      </div>
+    `,
+  };
+}
+
+export function interviewReminderEmail(
+  candidateName: string,
+  jobTitle: string,
+  round: string,
+  interviewer: string,
+  scheduledAt: Date
+) {
+  const formattedDate =
+    scheduledAt.toLocaleString("en-IN", { dateStyle: "full", timeStyle: "short", timeZone: "Asia/Kolkata" }) + " IST";
+
+  return {
+    subject: `Reminder: your ${round} is coming up — ${jobTitle}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: auto; padding: 24px; color: #18181b;">
+        <h2 style="margin-bottom: 4px;">Hi ${candidateName},</h2>
+        <p style="color: #52525b; line-height: 1.6;">This is a reminder that your ${round} for the <strong>${jobTitle}</strong> role is coming up.</p>
+        <div style="background: #f4f4f5; border-radius: 8px; padding: 16px; margin: 16px 0;">
+          <p style="margin: 4px 0;"><strong>When:</strong> ${formattedDate}</p>
+          <p style="margin: 4px 0;"><strong>With:</strong> ${interviewer}</p>
+        </div>
+        <p style="color: #52525b; line-height: 1.6;">Good luck — we look forward to speaking with you.</p>
         <p style="color: #a1a1aa; font-size: 12px; margin-top: 32px;">— The Hiring Team</p>
       </div>
     `,
