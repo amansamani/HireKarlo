@@ -97,18 +97,26 @@ export default function LoginPage() {
                 )}
               />
               <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <PasswordInput placeholder="••••••••" {...field} disabled={isLoading} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className="flex items-center justify-between">
+                        <FormLabel>Password</FormLabel>
+                        <Link
+                          href="/forgot-password"
+                          className="text-xs font-medium text-primary hover:underline underline-offset-4"
+                        >
+                        Forgot password?
+                        </Link>
+                      </div>
+                      <FormControl>
+                        <PasswordInput placeholder="••••••••" {...field} disabled={isLoading} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               <Button type="submit" className="h-10 w-full font-semibold" disabled={isLoading}>
                 {isLoading ? "Signing in..." : "Sign In"}
               </Button>
