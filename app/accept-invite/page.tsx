@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { acceptInviteAction } from "@/actions/team";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 
-export default function AcceptInvitePage() {
+function AcceptInviteContent() {
   const params = useSearchParams();
   const router = useRouter();
   const token = params.get("token");
@@ -40,5 +40,20 @@ export default function AcceptInvitePage() {
       {status === "error" && <XCircle className="h-8 w-8 text-destructive" aria-hidden="true" />}
       <p className="text-sm text-foreground">{status === "loading" ? "Joining team..." : message}</p>
     </div>
+  );
+}
+
+export default function AcceptInvitePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto flex min-h-screen max-w-sm flex-col items-center justify-center gap-3 p-4 text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden="true" />
+          <p className="text-sm text-foreground">Joining team...</p>
+        </div>
+      }
+    >
+      <AcceptInviteContent />
+    </Suspense>
   );
 }
