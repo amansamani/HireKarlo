@@ -37,6 +37,7 @@ export async function createJobAction(rawData: unknown) {
 );
 
   try {
+    console.error("[createJobAction] about to insert:", JSON.stringify({ ctx, data, interviewRounds }));
     const newJob = await prisma.job.create({
       data: {
         userId: ctx.userId,
