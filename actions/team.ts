@@ -99,6 +99,14 @@ export async function acceptInviteAction(token: string) {
       return { error: "This invite is invalid or has expired." };
     }
 
+    const existingMembership = await prisma.membership.findUnique({
+      where: { organizationId_userId: { organizationId: invite.organizationId, userId: ctx.userId } },
+    });
+    if (existingMembership) {
+      await prisma.teamInvite.delete({ where: { token } });
+      return { error: "You're already a member of this team." };
+    }
+
     await prisma.membership.upsert({
       where: { organizationId_userId: { organizationId: invite.organizationId, userId: ctx.userId } },
       create: { organizationId: invite.organizationId, userId: ctx.userId, role: invite.role },
