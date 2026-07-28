@@ -1,16 +1,18 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireOrg } from "@/lib/require-auth";
+import { requireOrg, requireAuth } from "@/lib/require-auth";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/lib/send-email";
 import { interviewScheduledEmail } from "@/lib/email-templates";
 import { generateInterviewICS } from "@/lib/generate-ics";
+import { createMeetEvent } from "@/lib/google-calendar";
 
 export async function scheduleInterviewAction(data: {
   applicationId: string;
   round: string;
   interviewer: string;
+  interviewerId?: string;
   scheduledAt: string;
   jobId: string;
   durationMinutes?: number;
@@ -23,16 +25,34 @@ export async function scheduleInterviewAction(data: {
   const end = new Date(start.getTime() + duration * 60_000);
 
   try {
-    const currentApp = await prisma.jobApplication.findUnique({
-      where: { id: data.applicationId },
-      select: {
-        candidate: { select: { fullName: true, email: true } },
-        job: { select: { organizationId: true, title: true } },
-      },
-    });
+    const [currentApp, org] = await Promise.all([
+      prisma.jobApplication.findUnique({
+        where: { id: data.applicationId },
+        select: {
+          candidate: { select: { fullName: true, email: true } },
+          job: { select: { organizationId: true, title: true } },
+        },
+      }),
+      prisma.organization.findUnique({
+        where: { id: ctx.organizationId },
+        select: { googleRefreshToken: true },
+      }),
+    ]);
 
     if (!currentApp) return { error: "Application not found." };
     if (currentApp.job.organizationId !== ctx.organizationId) return { error: "Unauthorized" };
+
+    // If a team member was picked (not free text), make sure they're actually
+    // on this org — stops assigning someone else's account by a stale/forged id.
+    let interviewerEmail: string | null = null;
+    if (data.interviewerId) {
+      const isMember = await prisma.membership.findFirst({
+        where: { userId: data.interviewerId, organizationId: ctx.organizationId },
+        select: { id: true, user: { select: { email: true } } },
+      });
+      if (!isMember) return { error: "Selected interviewer isn't on your team." };
+      interviewerEmail = isMember.user.email;
+    }
 
     const scanStart = new Date(start.getTime() - 4 * 60 * 60_000);
     const scanEnd = new Date(end.getTime() + 4 * 60 * 60_000);
@@ -53,9 +73,38 @@ export async function scheduleInterviewAction(data: {
       return { error: `${data.interviewer} already has an interview with ${conflict.application.candidate.fullName} that overlaps this time.` };
     }
 
+    // Best-effort: if the org has Google Calendar connected, create a real
+    // event with an auto Meet link. Never let a Calendar failure block
+    // scheduling the interview itself.
+    let meetingLink: string | null = null;
+    if (org?.googleRefreshToken) {
+      try {
+        const attendees = [currentApp.candidate.email];
+        if (interviewerEmail) attendees.push(interviewerEmail);
+        meetingLink = await createMeetEvent({
+          refreshToken: org.googleRefreshToken,
+          summary: `${data.round} — ${currentApp.job.title}`,
+          description: `Interview with ${currentApp.candidate.fullName} for ${currentApp.job.title}. Interviewer: ${data.interviewer}.`,
+          start,
+          durationMinutes: duration,
+          attendeeEmails: attendees,
+        });
+      } catch (calendarError) {
+        console.error("[scheduleInterviewAction] Meet link creation failed, continuing without it:", calendarError);
+      }
+    }
+
     await prisma.$transaction([
       prisma.interview.create({
-        data: { applicationId: data.applicationId, round: data.round, interviewer: data.interviewer, scheduledAt: start, durationMinutes: duration },
+        data: {
+          applicationId: data.applicationId,
+          round: data.round,
+          interviewer: data.interviewer,
+          interviewerId: data.interviewerId ?? null,
+          scheduledAt: start,
+          durationMinutes: duration,
+          meetingLink,
+        },
       }),
       prisma.activityLog.create({
         data: {
@@ -67,13 +116,21 @@ export async function scheduleInterviewAction(data: {
       }),
     ]);
 
-    const { subject, html } = interviewScheduledEmail(currentApp.candidate.fullName, currentApp.job.title, data.round, data.interviewer, start);
+    const { subject, html } = interviewScheduledEmail(
+      currentApp.candidate.fullName,
+      currentApp.job.title,
+      data.round,
+      data.interviewer,
+      start,
+      meetingLink
+    );
     const ics = generateInterviewICS({
       uid: `${data.applicationId}-${start.getTime()}`,
       title: `${data.round} — ${currentApp.job.title}`,
-      description: `Interview with ${currentApp.candidate.fullName} for ${currentApp.job.title}. Interviewer: ${data.interviewer}.`,
+      description: `Interview with ${currentApp.candidate.fullName} for ${currentApp.job.title}. Interviewer: ${data.interviewer}.${meetingLink ? ` Join: ${meetingLink}` : ""}`,
       start,
       durationMinutes: duration,
+      location: meetingLink ?? undefined,
     });
 
     sendEmail(currentApp.candidate.email, subject, html, [
@@ -98,16 +155,34 @@ export async function submitInterviewFeedbackAction(data: {
   rating: number;
   feedback: string;
 }) {
-  const ctx = await requireOrg();
-  if (!ctx) return { error: "Unauthorized" };
+  const userId = await requireAuth();
+  if (!userId) return { error: "Unauthorized" };
   if (data.rating < 1 || data.rating > 5) return { error: "Rating must be between 1 and 5." };
 
   try {
-    const owned = await prisma.interview.findFirst({
-      where: { id: data.interviewId, application: { job: { organizationId: ctx.organizationId } } },
-      select: { id: true, applicationId: true },
+    const interview = await prisma.interview.findUnique({
+      where: { id: data.interviewId },
+      select: {
+        id: true,
+        applicationId: true,
+        interviewerId: true,
+        application: { select: { job: { select: { organizationId: true } } } },
+      },
     });
-    if (!owned) return { error: "Interview not found or unauthorized." };
+    if (!interview) return { error: "Interview not found or unauthorized." };
+
+    // Access = either you're the specific person this interview is assigned
+    // to (works across every org you're linked to), or you're on the org that
+    // owns this job (recruiters/admins entering feedback on someone's behalf,
+    // or legacy interviews with no linked account).
+    const isAssignedInterviewer = interview.interviewerId === userId;
+    if (!isAssignedInterviewer) {
+      const membership = await prisma.membership.findFirst({
+        where: { userId, organizationId: interview.application.job.organizationId },
+        select: { id: true },
+      });
+      if (!membership) return { error: "Interview not found or unauthorized." };
+    }
 
     await prisma.$transaction([
       prisma.interview.update({
@@ -116,8 +191,8 @@ export async function submitInterviewFeedbackAction(data: {
       }),
       prisma.activityLog.create({
         data: {
-          userId: ctx.userId,
-          applicationId: owned.applicationId,
+          userId,
+          applicationId: interview.applicationId,
           action: "Interview Feedback Submitted",
           details: `Result: ${data.result}, Rating: ${data.rating}/5`,
         },
@@ -129,5 +204,64 @@ export async function submitInterviewFeedbackAction(data: {
   } catch (error) {
     console.error("[submitInterviewFeedbackAction] failed:", error);
     return { error: "Failed to save feedback." };
+  }
+}
+
+export async function getMyAssignedInterviewsAction() {
+  const userId = await requireAuth();
+  if (!userId) return { error: "Unauthorized", interviews: [] };
+
+  try {
+    const interviews = await prisma.interview.findMany({
+      where: { interviewerId: userId },
+      select: {
+        id: true,
+        round: true,
+        interviewer: true,
+        meetingLink: true,
+        scheduledAt: true,
+        result: true,
+        rating: true,
+        feedback: true,
+        application: {
+          select: {
+            job: { select: { id: true, title: true, organization: { select: { name: true } } } },
+            candidate: { select: { fullName: true, email: true } },
+          },
+        },
+      },
+      orderBy: { scheduledAt: "asc" },
+    });
+
+    return { interviews };
+  } catch (error) {
+    console.error("[getMyAssignedInterviewsAction] failed:", error);
+    return { error: "Failed to load your interviews.", interviews: [] };
+  }
+}
+
+export async function rateInterviewerAction(interviewId: string, rating: number) {
+  const ctx = await requireOrg();
+  if (!ctx) return { error: "Unauthorized" };
+  if (rating < 1 || rating > 5) return { error: "Rating must be between 1 and 5." };
+
+  try {
+    const interview = await prisma.interview.findUnique({
+      where: { id: interviewId },
+      select: { id: true, interviewerId: true, application: { select: { job: { select: { organizationId: true } } } } },
+    });
+    if (!interview || interview.application.job.organizationId !== ctx.organizationId) {
+      return { error: "Interview not found or unauthorized." };
+    }
+    if (!interview.interviewerId) {
+      return { error: "This interviewer isn't a linked HireKarlo account, nothing to rate." };
+    }
+
+    await prisma.interview.update({ where: { id: interviewId }, data: { interviewerRating: rating } });
+    revalidatePath("/dashboard/interviews");
+    return { success: "Rating saved." };
+  } catch (error) {
+    console.error("[rateInterviewerAction] failed:", error);
+    return { error: "Failed to save rating." };
   }
 }

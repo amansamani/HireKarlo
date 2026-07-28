@@ -82,7 +82,8 @@ export function interviewScheduledEmail(
   jobTitle: string,
   round: string,
   interviewer: string,
-  scheduledAt: Date
+  scheduledAt: Date,
+  meetingLink?: string | null
 ) {
   const formattedDate =
     scheduledAt.toLocaleString("en-IN", { dateStyle: "full", timeStyle: "short", timeZone: "Asia/Kolkata" }) + " IST";
@@ -96,6 +97,7 @@ export function interviewScheduledEmail(
         <div style="background: #f4f4f5; border-radius: 8px; padding: 16px; margin: 16px 0;">
           <p style="margin: 4px 0;"><strong>When:</strong> ${formattedDate}</p>
           <p style="margin: 4px 0;"><strong>With:</strong> ${interviewer}</p>
+          ${meetingLink ? `<p style="margin: 4px 0;"><strong>Join:</strong> <a href="${meetingLink}">${meetingLink}</a></p>` : ""}
         </div>
         <p style="color: #52525b; line-height: 1.6;">A calendar invite is attached. We look forward to speaking with you.</p>
         <p style="color: #a1a1aa; font-size: 12px; margin-top: 32px;">— The Hiring Team</p>

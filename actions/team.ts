@@ -20,10 +20,10 @@ export async function getTeamAction() {
   if (!ctx) return { error: "Unauthorized", members: [], invites: [] };
 
   try {
-    const [members, invites] = await Promise.all([
+    const [members, invites, org] = await Promise.all([
       prisma.membership.findMany({
         where: { organizationId: ctx.organizationId },
-        select: { id: true, role: true, userId: true, user: { select: { name: true, email: true } } },
+        select: { id: true, role: true, userId: true, user: { select: { name: true, email: true, bio: true } } },
         orderBy: { createdAt: "asc" },
       }),
       prisma.teamInvite.findMany({
@@ -31,11 +31,69 @@ export async function getTeamAction() {
         select: { id: true, email: true, role: true, createdAt: true },
         orderBy: { createdAt: "desc" },
       }),
+      prisma.organization.findUnique({
+        where: { id: ctx.organizationId },
+        select: { googleCalendarEmail: true },
+      }),
     ]);
-    return { members, invites, currentUserId: ctx.userId, currentRole: ctx.role };
+
+    const ratingStats = await prisma.interview.groupBy({
+      by: ["interviewerId"],
+      where: { interviewerId: { in: members.map((m) => m.userId) }, interviewerRating: { not: null } },
+      _avg: { interviewerRating: true },
+      _count: { interviewerRating: true },
+    });
+    const statsByUserId = new Map(
+      ratingStats.map((s) => [s.interviewerId, { avg: s._avg.interviewerRating ?? 0, count: s._count.interviewerRating }])
+    );
+    const membersWithStats = members.map((m) => ({
+      ...m,
+      interviewerStats: statsByUserId.get(m.userId) ?? null,
+    }));
+    return {
+      members: membersWithStats,
+      invites,
+      currentUserId: ctx.userId,
+      currentRole: ctx.role,
+      googleCalendarEmail: org?.googleCalendarEmail ?? null,
+    };
   } catch (error) {
     console.error("[getTeamAction] failed:", error);
     return { error: "Failed to load team.", members: [], invites: [] };
+  }
+}
+
+export async function disconnectGoogleCalendarAction() {
+  const ctx = await requireOrg();
+  if (!ctx) return { error: "Unauthorized" };
+  if (!canManageTeam(ctx.role)) return { error: "Only owners and admins can manage the calendar connection." };
+
+  try {
+    await prisma.organization.update({
+      where: { id: ctx.organizationId },
+      data: { googleRefreshToken: null, googleCalendarEmail: null },
+    });
+    revalidatePath("/dashboard/team");
+    return { success: "Google Calendar disconnected." };
+  } catch (error) {
+    console.error("[disconnectGoogleCalendarAction] failed:", error);
+    return { error: "Failed to disconnect." };
+  }
+}
+
+export async function updateMyBioAction(bio: string) {
+  const ctx = await requireOrg();
+  if (!ctx) return { error: "Unauthorized" };
+
+  const trimmed = bio.trim().slice(0, 240);
+
+  try {
+    await prisma.user.update({ where: { id: ctx.userId }, data: { bio: trimmed || null } });
+    revalidatePath("/dashboard/team");
+    return { success: "Bio updated." };
+  } catch (error) {
+    console.error("[updateMyBioAction] failed:", error);
+    return { error: "Failed to update bio." };
   }
 }
 
