@@ -38,6 +38,7 @@ model User {
   password      String          // Hashed password
   emailVerified DateTime?
   image         String?
+  bio           String?
   accounts      Account[]
   sessions      Session[]
   assignedInterviews Interview[] @relation("InterviewerAssignments")

@@ -12,6 +12,7 @@ export function generateInterviewICS(params: {
   description: string;
   start: Date;
   durationMinutes: number;
+  location?: string;
 }): string {
   const end = new Date(params.start.getTime() + params.durationMinutes * 60_000);
   return [
@@ -27,6 +28,7 @@ export function generateInterviewICS(params: {
     `DTEND:${toICSDate(end)}`,
     `SUMMARY:${escapeICS(params.title)}`,
     `DESCRIPTION:${escapeICS(params.description)}`,
+    ...(params.location ? [`LOCATION:${escapeICS(params.location)}`] : []),
     "END:VEVENT",
     "END:VCALENDAR",
   ].join("\r\n");
