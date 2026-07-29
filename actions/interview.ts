@@ -7,6 +7,8 @@ import { sendEmail } from "@/lib/send-email";
 import { interviewScheduledEmail } from "@/lib/email-templates";
 import { generateInterviewICS } from "@/lib/generate-ics";
 import { createMeetEvent } from "@/lib/google-calendar";
+import { canEditPipeline } from "@/lib/roles";
+import { ApplicationStage } from "@prisma/client";
 
 export async function scheduleInterviewAction(data: {
   applicationId: string;
@@ -15,10 +17,12 @@ export async function scheduleInterviewAction(data: {
   interviewerId?: string;
   scheduledAt: string;
   jobId: string;
+  targetStage: string;
   durationMinutes?: number;
 }) {
   const ctx = await requireOrg();
   if (!ctx) return { error: "Unauthorized" };
+  if (!canEditPipeline(ctx.role)) return { error: "Interviewers can't schedule interviews." };
 
   const duration = data.durationMinutes ?? 60;
   const start = new Date(data.scheduledAt);
@@ -29,6 +33,7 @@ export async function scheduleInterviewAction(data: {
       prisma.jobApplication.findUnique({
         where: { id: data.applicationId },
         select: {
+          stage: true,
           candidate: { select: { fullName: true, email: true } },
           job: { select: { organizationId: true, title: true } },
         },
@@ -106,12 +111,24 @@ export async function scheduleInterviewAction(data: {
           meetingLink,
         },
       }),
+      prisma.jobApplication.update({
+        where: { id: data.applicationId },
+        data: { stage: data.targetStage as ApplicationStage },
+      }),
       prisma.activityLog.create({
         data: {
           userId: ctx.userId,
           applicationId: data.applicationId,
           action: "Interview Scheduled",
           details: `${data.round} scheduled for ${currentApp.candidate.fullName} with ${data.interviewer}`,
+        },
+      }),
+      prisma.activityLog.create({
+        data: {
+          userId: ctx.userId,
+          applicationId: data.applicationId,
+          action: `Moved to ${data.targetStage}`,
+          details: `${currentApp.candidate.fullName} shifted from ${currentApp.stage} to ${data.targetStage}`,
         },
       }),
     ]);
@@ -239,7 +256,6 @@ export async function getMyAssignedInterviewsAction() {
     return { error: "Failed to load your interviews.", interviews: [] };
   }
 }
-
 export async function rateInterviewerAction(interviewId: string, rating: number) {
   const ctx = await requireOrg();
   if (!ctx) return { error: "Unauthorized" };

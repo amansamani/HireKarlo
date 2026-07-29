@@ -205,6 +205,7 @@ export default function JobDetailsPage({ params }: { params: Promise<{ id: strin
   const [rescoringId, setRescoringId] = useState<string | null>(null);
   const [activeModalApp, setActiveModalApp] = useState<{ id: string; targetStage: string } | null>(null);
   const [interviewer, setInterviewer] = useState("");
+  const [interviewerId, setInterviewerId] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
   const [roundName, setRoundName] = useState("");
   const [isMounted, setIsMounted] = useState(false);
@@ -320,8 +321,10 @@ export default function JobDetailsPage({ params }: { params: Promise<{ id: strin
         applicationId: activeModalApp.id,
         round: roundName,
         interviewer,
+        interviewerId: interviewerId || undefined,
         scheduledAt: scheduleTime,
         jobId,
+        targetStage: activeModalApp.targetStage,
       });
 
       if (scheduleRes?.error) {
