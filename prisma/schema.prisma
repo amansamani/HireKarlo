@@ -13,16 +13,6 @@ enum JobStatus {
   DRAFT
 }
 
-enum ApplicationStage {
-  APPLIED
-  SCREENING
-  TECHNICAL
-  HR
-  OFFER
-  HIRED
-  REJECTED
-}
-
 enum EmploymentType {
   FULL_TIME
   PART_TIME
@@ -188,7 +178,7 @@ model JobApplication {
   jobId             String
   job               Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
   
-  stage             ApplicationStage @default(APPLIED)
+  stage             String           @default("APPLIED")
   appliedDate       DateTime         @default(now())
   assignedRecruiter String?
   remarks           String?

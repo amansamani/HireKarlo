@@ -9,7 +9,7 @@ import { sendEmail } from "@/lib/send-email";
 import { stageChangeEmail } from "@/lib/email-templates";
 import { extractResumeText } from "@/lib/parse-resume";
 import { scoreResumeAgainstJob } from "@/lib/score-resume";
-import { ApplicationStage } from "@prisma/client";
+
 const StageSchema = z.string().trim().min(1).max(60);
 
 export async function getJobApplicantsAction(jobId: string) {
@@ -68,7 +68,7 @@ export async function updateApplicationStatusAction(applicationId: string, statu
     if (currentApp.job.organizationId !== ctx.organizationId) return { error: "Unauthorized" };
 
     await prisma.$transaction([
-      prisma.jobApplication.update({ where: { id: applicationId }, data: { stage: parsedStage.data as ApplicationStage } }),
+      prisma.jobApplication.update({ where: { id: applicationId }, data: { stage: parsedStage.data } }),
       prisma.activityLog.create({
         data: {
           userId: ctx.userId,

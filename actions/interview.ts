@@ -8,7 +8,6 @@ import { interviewScheduledEmail } from "@/lib/email-templates";
 import { generateInterviewICS } from "@/lib/generate-ics";
 import { createMeetEvent } from "@/lib/google-calendar";
 import { canEditPipeline } from "@/lib/roles";
-import { ApplicationStage } from "@prisma/client";
 
 export async function scheduleInterviewAction(data: {
   applicationId: string;
@@ -113,7 +112,7 @@ export async function scheduleInterviewAction(data: {
       }),
       prisma.jobApplication.update({
         where: { id: data.applicationId },
-        data: { stage: data.targetStage as ApplicationStage },
+        data: { stage: data.targetStage },
       }),
       prisma.activityLog.create({
         data: {
