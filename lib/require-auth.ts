@@ -51,7 +51,7 @@ export async function requireOrg(): Promise<{ userId: string; organizationId: st
 
   const membership = await prisma.membership.findFirst({
     where: { userId },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: "desc" },
     select: { organizationId: true, role: true },
   });
 
