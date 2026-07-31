@@ -93,8 +93,10 @@ const ApplicantCard = memo(function ApplicantCard({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const name = app.candidate?.fullName || "Unnamed Candidate";
-  const otherStages = useMemo(() => stages.filter((s) => s.key !== app.stage), [stages, app.stage]);
-
+  const otherStages = useMemo(
+    () => stages.filter((s) => s.key !== app.stage || s.needsSchedule),
+    [stages, app.stage]
+  );
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-background/60 shadow-sm transition-colors hover:border-primary/40">
       <button type="button" onClick={() => setIsOpen((prev) => !prev)} aria-expanded={isOpen} className="flex w-full min-w-0 items-center gap-2 px-3.5 py-3 text-left">
@@ -145,8 +147,12 @@ const ApplicantCard = memo(function ApplicantCard({
                 className="h-8 w-full appearance-none rounded-lg border border-input bg-background px-2.5 pr-7 text-[11px] text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <option value="" disabled>Move to…</option>
-                {otherStages.map((s) => <option key={s.key} value={s.key}>{s.name}</option>)}
-              </select>
+{               otherStages.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.key === app.stage ? `Schedule again — ${s.name}` : s.name}
+                  </option>
+                ))}             
+               </select>
               <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             </div>
             {app.stage !== "REJECTED" && (
