@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireOrg } from "@/lib/require-auth";
+import { requireOrg, requireAuth } from "@/lib/require-auth";
 import { canManageTeam } from "@/lib/roles";
 import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
@@ -148,8 +148,8 @@ export async function inviteTeamMemberAction(rawData: unknown) {
 }
 
 export async function acceptInviteAction(token: string) {
-  const ctx = await requireOrg();
-  if (!ctx) return { error: "Please log in first, then open the invite link again." };
+  const userId = await requireAuth();
+  if (!userId) return { error: "Please log in first, then open the invite link again." };
 
   try {
     const invite = await prisma.teamInvite.findUnique({ where: { token } });
@@ -158,7 +158,7 @@ export async function acceptInviteAction(token: string) {
     }
 
     const existingMembership = await prisma.membership.findUnique({
-      where: { organizationId_userId: { organizationId: invite.organizationId, userId: ctx.userId } },
+      where: { organizationId_userId: { organizationId: invite.organizationId, userId } },
     });
     if (existingMembership) {
       await prisma.teamInvite.delete({ where: { token } });
@@ -166,8 +166,8 @@ export async function acceptInviteAction(token: string) {
     }
 
     await prisma.membership.upsert({
-      where: { organizationId_userId: { organizationId: invite.organizationId, userId: ctx.userId } },
-      create: { organizationId: invite.organizationId, userId: ctx.userId, role: invite.role },
+      where: { organizationId_userId: { organizationId: invite.organizationId, userId } },
+      create: { organizationId: invite.organizationId, userId, role: invite.role },
       update: { role: invite.role },
     });
     await prisma.teamInvite.delete({ where: { token } });
