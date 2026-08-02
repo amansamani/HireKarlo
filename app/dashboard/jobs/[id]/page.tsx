@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getJobApplicantsAction, updateApplicationStatusAction, rescoreApplicationAction } from "@/actions/application";
 import { scheduleInterviewAction } from "@/actions/interview";
+import { getTeamAction } from "@/actions/team";
 import { deleteJobAction } from "@/actions/jobs-pool";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,13 @@ type ActivityLog = {
   details: string | null;
   createdAt: Date | string;
   user: { name: string | null; email: string };
+};
+
+type OrgMember = {
+  userId: string;
+  role: string;
+  user: { name: string | null; email: string };
+  interviewerStats: { avg: number; count: number } | null;
 };
 
 type JobInfo = { title?: string; interviewRounds: string[] };
@@ -87,9 +95,9 @@ const ActivityLogItem = memo(function ActivityLogItem({ log }: { log: ActivityLo
 });
 
 const ApplicantCard = memo(function ApplicantCard({
-  app, stages, onStatusChange, onRescore, isRescoring,
+  app, stages, onStatusChange, onRescore, isRescoring, canEditPipeline,
 }: {
-  app: Application; stages: StageConfig[]; onStatusChange: (id: string, status: string) => void; onRescore: (id: string) => void; isRescoring: boolean;
+  app: Application; stages: StageConfig[]; onStatusChange: (id: string, status: string) => void; onRescore: (id: string) => void; isRescoring: boolean; canEditPipeline: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const name = app.candidate?.fullName || "Unnamed Candidate";
@@ -97,6 +105,7 @@ const ApplicantCard = memo(function ApplicantCard({
     () => stages.filter((s) => s.key !== app.stage || s.needsSchedule),
     [stages, app.stage]
   );
+
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-background/60 shadow-sm transition-colors hover:border-primary/40">
       <button type="button" onClick={() => setIsOpen((prev) => !prev)} aria-expanded={isOpen} className="flex w-full min-w-0 items-center gap-2 px-3.5 py-3 text-left">
@@ -134,33 +143,35 @@ const ApplicantCard = memo(function ApplicantCard({
 
           {app.aiSummary && <p className="line-clamp-2 italic text-muted-foreground">{app.aiSummary}</p>}
 
-          <div className="flex items-center gap-1.5 border-t border-border pt-2.5">
-            <div className="relative min-w-0 flex-1">
-              <select
-                key={`${app.id}-${app.stage}`}
-                defaultValue=""
-                onChange={(e) => {
-                  const value = e.target.value;
-                  e.target.value = "";
-                  if (value) onStatusChange(app.id, value);
-                }}
-                className="h-8 w-full appearance-none rounded-lg border border-input bg-background px-2.5 pr-7 text-[11px] text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                <option value="" disabled>Move to…</option>
-{               otherStages.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.key === app.stage ? `Schedule again — ${s.name}` : s.name}
-                  </option>
-                ))}             
-               </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          {canEditPipeline && (
+            <div className="flex items-center gap-1.5 border-t border-border pt-2.5">
+              <div className="relative min-w-0 flex-1">
+                <select
+                  key={`${app.id}-${app.stage}`}
+                  defaultValue=""
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    e.target.value = "";
+                    if (value) onStatusChange(app.id, value);
+                  }}
+                  className="h-8 w-full appearance-none rounded-lg border border-input bg-background px-2.5 pr-7 text-[11px] text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  <option value="" disabled>Move to…</option>
+                  {otherStages.map((s) => (
+                    <option key={s.key} value={s.key}>
+                      {s.key === app.stage ? `Schedule again — ${s.name}` : s.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              </div>
+              {app.stage !== "REJECTED" && (
+                <button type="button" onClick={() => onStatusChange(app.id, "REJECTED")} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-destructive" aria-label={`Reject ${name}`} title="Reject candidate">
+                  <XCircle className="h-4 w-4" aria-hidden="true" />
+                </button>
+              )}
             </div>
-            {app.stage !== "REJECTED" && (
-              <button type="button" onClick={() => onStatusChange(app.id, "REJECTED")} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-destructive" aria-label={`Reject ${name}`} title="Reject candidate">
-                <XCircle className="h-4 w-4" aria-hidden="true" />
-              </button>
-            )}
-          </div>
+          )}
         </div>
       )}
     </div>
@@ -168,9 +179,9 @@ const ApplicantCard = memo(function ApplicantCard({
 });
 
 const KanbanColumn = memo(function KanbanColumn({
-  stage, apps, stages, onStatusChange, onRescore, rescoringId,
+  stage, apps, stages, onStatusChange, onRescore, rescoringId, canEditPipeline,
 }: {
-  stage: StageConfig; apps: Application[]; stages: StageConfig[]; onStatusChange: (id: string, status: string) => void; onRescore: (id: string) => void; rescoringId: string | null;
+  stage: StageConfig; apps: Application[]; stages: StageConfig[]; onStatusChange: (id: string, status: string) => void; onRescore: (id: string) => void; rescoringId: string | null; canEditPipeline: boolean;
 }) {
   return (
     <div className="min-h-[420px] w-72 shrink-0 snap-start space-y-4 overflow-hidden rounded-2xl border border-border bg-card p-4">
@@ -185,7 +196,7 @@ const KanbanColumn = memo(function KanbanColumn({
           <div className="rounded-xl border border-dashed border-border py-8 text-center text-xs text-muted-foreground">No candidates</div>
         ) : (
           apps.map((app) => (
-            <ApplicantCard key={app.id} app={app} stages={stages} onStatusChange={onStatusChange} onRescore={onRescore} isRescoring={rescoringId === app.id} />
+            <ApplicantCard key={app.id} app={app} stages={stages} onStatusChange={onStatusChange} onRescore={onRescore} isRescoring={rescoringId === app.id} canEditPipeline={canEditPipeline} />
           ))
         )}
       </div>
@@ -212,13 +223,21 @@ export default function JobDetailsPage({ params }: { params: Promise<{ id: strin
   const [activeModalApp, setActiveModalApp] = useState<{ id: string; targetStage: string } | null>(null);
   const [interviewer, setInterviewer] = useState("");
   const [interviewerId, setInterviewerId] = useState("");
+  const [members, setMembers] = useState<OrgMember[]>([]);
   const [scheduleTime, setScheduleTime] = useState("");
   const [roundName, setRoundName] = useState("");
   const [isMounted, setIsMounted] = useState(false);
+  const [canEditPipeline, setCanEditPipeline] = useState(true);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    getTeamAction().then((res) => {
+      if (res.members) setMembers(res.members as OrgMember[]);
+    });
   }, []);
 
   // REUSABLE DATA FETCH/REFRESH FUNCTION
@@ -227,6 +246,7 @@ export default function JobDetailsPage({ params }: { params: Promise<{ id: strin
     if (res.job) setJob(res.job);
     if (res.applications) setApplicants(res.applications);
     if (res.activityLogs) setLogs(res.activityLogs);
+    if (typeof res.canEditPipeline === "boolean") setCanEditPipeline(res.canEditPipeline);
   }, [jobId]);
 
   // Initial Fetch on mount
@@ -254,6 +274,7 @@ export default function JobDetailsPage({ params }: { params: Promise<{ id: strin
   const closeModal = useCallback(() => {
     setActiveModalApp(null);
     setInterviewer("");
+    setInterviewerId("");
     setScheduleTime("");
     setRoundName("");
   }, []);
@@ -412,6 +433,7 @@ export default function JobDetailsPage({ params }: { params: Promise<{ id: strin
             onStatusChange={handleStatusChange}
             onRescore={rescoreApplication}
             rescoringId={rescoringId}
+            canEditPipeline={canEditPipeline}
           />
         ))}
       </div>
@@ -464,8 +486,52 @@ export default function JobDetailsPage({ params }: { params: Promise<{ id: strin
                 )}
               </div>
               <div className="space-y-1">
-                <label htmlFor="interviewer-name" className="text-[11px] font-medium text-muted-foreground">Interviewer Name</label>
-                <Input id="interviewer-name" autoFocus value={interviewer} onChange={(e) => setInterviewer(e.target.value)} placeholder="e.g., Lead Architect" required />
+                <label htmlFor="interviewer-name" className="text-[11px] font-medium text-muted-foreground">Interviewer</label>
+                {interviewerId ? (
+                  <div className="flex items-center justify-between rounded-lg border border-input px-2.5 py-1.5 text-sm">
+                    <span className="text-foreground">{interviewer}</span>
+                    <button
+                      type="button"
+                      onClick={() => { setInterviewerId(""); setInterviewer(""); }}
+                      className="text-[11px] font-medium text-primary hover:underline"
+                    >
+                      Change
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {members.length > 0 && (
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const member = members.find((m) => m.userId === e.target.value);
+                          if (member) {
+                            setInterviewerId(member.userId);
+                            setInterviewer(member.user.name || member.user.email);
+                          }
+                        }}
+                        style={{ colorScheme: "dark", backgroundColor: "var(--background)", color: "var(--foreground)" }}
+                        className="mb-1.5 h-8 w-full appearance-none rounded-lg border border-input px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                      >
+                        <option value="">Pick from your team...</option>
+                        {members.map((m) => (
+                          <option key={m.userId} value={m.userId}>
+                            {m.user.name || m.user.email} ({m.role})
+                            {m.interviewerStats ? ` — ★${m.interviewerStats.avg.toFixed(1)} (${m.interviewerStats.count})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <Input
+                      id="interviewer-name"
+                      autoFocus
+                      value={interviewer}
+                      onChange={(e) => setInterviewer(e.target.value)}
+                      placeholder={members.length > 0 ? "...or type a name (not on your team)" : "e.g., Lead Architect"}
+                      required
+                    />
+                  </>
+                )}
               </div>
               <div className="space-y-1">
                 <label htmlFor="schedule-time" className="text-[11px] font-medium text-muted-foreground">Date &amp; Time</label>

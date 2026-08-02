@@ -43,7 +43,7 @@ export async function getJobApplicantsAction(jobId: string) {
       }),
     ]);
 
-    return { job, applications, activityLogs };
+    return { job, applications, activityLogs, canEditPipeline: canEditPipeline(ctx.role) };
   } catch (error) {
     console.error("[getJobApplicantsAction] Fetch error:", error);
     return { error: "Failed to fetch applicants", applications: [], activityLogs: [] };
