@@ -50,7 +50,7 @@ export async function getAllJobsAction(
     });
 
     const hasMore = rows.length > PAGE_SIZE;
-    return { jobs: rows.slice(0, PAGE_SIZE), hasMore };
+    return { jobs: rows.slice(0, PAGE_SIZE), hasMore, canCreateJob: canEditPipeline(ctx.role) };
   } catch (error) {
     console.error("Failed to fetch jobs pool:", error);
     return { error: "Failed to load jobs list.", jobs: [], hasMore: false };

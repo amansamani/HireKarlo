@@ -18,6 +18,7 @@ export default async function JobsPoolPage() {
     <JobsPoolClient 
       initialJobs={res.jobs as ComponentProps<typeof JobsPoolClient>["initialJobs"]} 
       initialHasMore={res.hasMore}
+      canCreateJob={res.canCreateJob ?? false}
     />
   );
 }

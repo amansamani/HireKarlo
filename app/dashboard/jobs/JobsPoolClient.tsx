@@ -126,9 +126,11 @@ const JobCard = memo(function JobCard({
 export default function JobsPoolClient({
   initialJobs,
   initialHasMore,
+  canCreateJob,
 }: {
   initialJobs: GlobalJob[];
   initialHasMore: boolean;
+  canCreateJob: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -163,7 +165,6 @@ export default function JobsPoolClient({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, statusFilter]);
 
   const loadMore = useCallback(async () => {
@@ -272,11 +273,13 @@ export default function JobsPoolClient({
             <h2 className="text-2xl font-semibold tracking-tight">Job Openings</h2>
             <p className="text-sm text-muted-foreground">Manage your active listings and incoming pipeline volume.</p>
           </div>
-          <Link href="/dashboard/jobs/create" className="self-start">
-            <Button className="gap-1.5 text-xs font-semibold">
-              <Plus className="h-4 w-4" aria-hidden="true" /> Create Position
-            </Button>
-          </Link>
+          {canCreateJob && (
+            <Link href="/dashboard/jobs/create" className="self-start">
+              <Button className="gap-1.5 text-xs font-semibold">
+                <Plus className="h-4 w-4" aria-hidden="true" /> Create Position
+              </Button>
+            </Link>
+          )}
         </div>
 
         {SearchFilterBar}
@@ -289,7 +292,7 @@ export default function JobsPoolClient({
           <p className="mt-1 text-xs text-muted-foreground">
             {hasActiveFilter ? "Try a different search term or status." : "Add your first role to start collecting public resumes."}
           </p>
-          {!hasActiveFilter && (
+          {!hasActiveFilter && canCreateJob && (
             <Link href="/dashboard/jobs/create" className="mt-4 inline-block">
               <Button size="sm" className="text-xs font-semibold">Create your first position</Button>
             </Link>
@@ -307,11 +310,13 @@ export default function JobsPoolClient({
           <h2 className="text-2xl font-semibold tracking-tight">Job Openings</h2>
           <p className="text-sm text-muted-foreground">Manage your active listings and incoming pipeline volume.</p>
         </div>
-        <Link href="/dashboard/jobs/create" className="self-start">
-          <Button className="gap-1.5 text-xs font-semibold">
-            <Plus className="h-4 w-4" aria-hidden="true" /> Create Position
-          </Button>
-        </Link>
+        {canCreateJob && (
+          <Link href="/dashboard/jobs/create" className="self-start">
+            <Button className="gap-1.5 text-xs font-semibold">
+              <Plus className="h-4 w-4" aria-hidden="true" /> Create Position
+            </Button>
+          </Link>
+        )}
       </div>
 
       {SearchFilterBar}
