@@ -207,6 +207,7 @@ model Interview {
   scheduledAt     DateTime
   durationMinutes Int            @default(60)
   meetingLink     String?        // auto-filled Google Meet link when org has Calendar connected
+  googleEventId   String?        // Calendar event id, needed to cancel the event on delete
   feedback        String?
   result          String?        // e.g., "PASSED", "FAILED", "PENDING"
   rating          Int?           // 1-5 scorecard rating of the CANDIDATE, set by the interviewer

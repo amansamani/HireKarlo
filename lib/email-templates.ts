@@ -106,6 +106,23 @@ export function interviewScheduledEmail(
   };
 }
 
+export function interviewCancelledEmail(candidateName: string, jobTitle: string, round: string, scheduledAt: Date) {
+  const formattedDate =
+    scheduledAt.toLocaleString("en-IN", { dateStyle: "full", timeStyle: "short", timeZone: "Asia/Kolkata" }) + " IST";
+
+  return {
+    subject: `Interview cancelled — ${jobTitle}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: auto; padding: 24px; color: #18181b;">
+        <h2 style="margin-bottom: 4px;">Hi ${candidateName},</h2>
+        <p style="color: #52525b; line-height: 1.6;">Your ${round} for the <strong>${jobTitle}</strong> role, originally scheduled for ${formattedDate}, has been cancelled.</p>
+        <p style="color: #52525b; line-height: 1.6;">We'll be in touch if it needs to be rescheduled.</p>
+        <p style="color: #a1a1aa; font-size: 12px; margin-top: 32px;">— The Hiring Team</p>
+      </div>
+    `,
+  };
+}
+
 export function interviewReminderEmail(
   candidateName: string,
   jobTitle: string,

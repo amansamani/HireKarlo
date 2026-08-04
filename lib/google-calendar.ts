@@ -80,7 +80,7 @@ export async function createMeetEvent(params: {
   start: Date;
   durationMinutes: number;
   attendeeEmails: string[];
-}): Promise<string | null> {
+}): Promise<{ meetingLink: string | null; eventId: string | null }> {
   const accessToken = await refreshAccessToken(params.refreshToken);
   const end = new Date(params.start.getTime() + params.durationMinutes * 60_000);
 
@@ -95,8 +95,8 @@ export async function createMeetEvent(params: {
       body: JSON.stringify({
         summary: params.summary,
         description: params.description,
-        start: { dateTime: params.start.toISOString() },
-        end: { dateTime: end.toISOString() },
+        start: { dateTime: params.start.toISOString(), timeZone: "Asia/Kolkata" },
+        end: { dateTime: end.toISOString(), timeZone: "Asia/Kolkata" },
         attendees: params.attendeeEmails.map((email) => ({ email })),
         conferenceData: {
           createRequest: {
@@ -110,5 +110,21 @@ export async function createMeetEvent(params: {
 
   if (!res.ok) throw new Error(`Google Calendar event creation failed: ${await res.text()}`);
   const event = await res.json();
-  return event.hangoutLink ?? null;
+  return { meetingLink: event.hangoutLink ?? null, eventId: event.id ?? null };
+}
+
+export async function deleteMeetEvent(params: { refreshToken: string; eventId: string }): Promise<void> {
+  const accessToken = await refreshAccessToken(params.refreshToken);
+
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${params.eventId}?sendUpdates=none`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }
+  );
+
+  if (!res.ok && res.status !== 404 && res.status !== 410) {
+    throw new Error(`Google Calendar event deletion failed: ${await res.text()}`);
+  }
 }

@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Calendar, Briefcase, Clock, UserCheck, Loader2, Star } from "lucide-react";
+import { Calendar, Briefcase, Clock, UserCheck, Loader2, Star, Video, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getAllInterviewsAction } from "@/actions/interviews-pool";
-import { submitInterviewFeedbackAction } from "@/actions/interview";
+import { submitInterviewFeedbackAction, rateInterviewerAction, cancelInterviewAction } from "@/actions/interview";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -12,6 +12,9 @@ type GlobalInterview = {
   id: string;
   round: string;
   interviewer: string;
+  interviewerId: string | null;
+  interviewerRating: number | null;
+  meetingLink: string | null;
   scheduledAt: Date | string;
   result: string | null;
   rating: number | null;
@@ -150,6 +153,106 @@ function ScorecardForm({
   );
 }
 
+function InterviewerRatingWidget({
+  interview,
+  onRated,
+}: {
+  interview: GlobalInterview;
+  onRated: (id: string, rating: number) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [hovered, setHovered] = useState(0);
+
+  if (!interview.interviewerId || !interview.result || interview.result === "PENDING") return null;
+
+  const current = interview.interviewerRating ?? 0;
+
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-border bg-background/60 p-2 text-xs">
+      <span className="text-muted-foreground">Rate {interview.interviewer}&apos;s session</span>
+      <div className="flex gap-0.5">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            disabled={saving}
+            onMouseEnter={() => setHovered(n)}
+            onMouseLeave={() => setHovered(0)}
+            onClick={async () => {
+              setSaving(true);
+              const res = await rateInterviewerAction(interview.id, n);
+              setSaving(false);
+              if (res.error) {
+                toast.error(res.error);
+              } else {
+                onRated(interview.id, n);
+              }
+            }}
+            aria-label={`Rate ${n} star`}
+          >
+            <Star
+              className={`h-3.5 w-3.5 ${n <= (hovered || current) ? "fill-current text-warning" : "text-muted-foreground"}`}
+              aria-hidden="true"
+            />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CancelInterviewButton({ interviewId, onCancelled }: { interviewId: string; onCancelled: (id: string) => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
+  if (confirming) {
+    return (
+      <div className="flex items-center gap-1.5 rounded-lg border border-destructive/30 bg-destructive/10 px-2 py-1">
+        <span className="text-[11px] font-medium text-destructive">Cancel this interview?</span>
+        <button
+          type="button"
+          onClick={async () => {
+            setCancelling(true);
+            const res = await cancelInterviewAction(interviewId);
+            setCancelling(false);
+            if (res.error) {
+              toast.error(res.error);
+            } else {
+              toast.success("Interview cancelled.");
+              onCancelled(interviewId);
+            }
+          }}
+          disabled={cancelling}
+          className="rounded-md bg-destructive px-2 py-1 text-[11px] font-semibold text-destructive-foreground hover:opacity-90 disabled:opacity-60"
+        >
+          {cancelling ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : "Cancel it"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setConfirming(false)}
+          disabled={cancelling}
+          className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label="Keep interview"
+        >
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setConfirming(true)}
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
+      aria-label="Cancel interview"
+      title="Cancel interview"
+    >
+      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+    </button>
+  );
+}
+
 export default function InterviewsPoolClient({
   initialInterviews,
   initialHasMore,
@@ -184,6 +287,14 @@ export default function InterviewsPoolClient({
     },
     []
   );
+
+  const updateInterviewerRating = useCallback((id: string, interviewerRating: number) => {
+    setInterviews((current) => current.map((i) => (i.id === id ? { ...i, interviewerRating } : i)));
+  }, []);
+
+  const removeCancelledInterview = useCallback((id: string) => {
+    setInterviews((current) => current.filter((i) => i.id !== id));
+  }, []);
 
   if (interviews.length === 0) {
     return (
@@ -229,12 +340,15 @@ export default function InterviewsPoolClient({
                   </h3>
                 </div>
 
-                <div className="space-y-1 text-right text-xs font-medium text-muted-foreground">
-                  <div className="flex items-center justify-end gap-1.5 text-foreground/80">
-                    <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-                    {timeStr}
+                <div className="flex items-start gap-1.5">
+                  <div className="space-y-1 text-right text-xs font-medium text-muted-foreground">
+                    <div className="flex items-center justify-end gap-1.5 text-foreground/80">
+                      <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                      {timeStr}
+                    </div>
+                    <div className="font-mono text-[10px]">{dateStr}</div>
                   </div>
-                  <div className="font-mono text-[10px]">{dateStr}</div>
+                  <CancelInterviewButton interviewId={interview.id} onCancelled={removeCancelledInterview} />
                 </div>
               </div>
 
@@ -256,7 +370,19 @@ export default function InterviewsPoolClient({
                 </div>
               </div>
 
+              {interview.meetingLink && (
+                <a
+                  href={interview.meetingLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 p-2 text-xs font-medium text-primary hover:bg-primary/20"
+                >
+                  <Video className="h-3.5 w-3.5" aria-hidden="true" /> Join Google Meet
+                </a>
+              )}
+
               <ScorecardForm interview={interview} onSaved={updateInterviewFeedback} />
+              <InterviewerRatingWidget interview={interview} onRated={updateInterviewerRating} />
             </div>
           );
         })}

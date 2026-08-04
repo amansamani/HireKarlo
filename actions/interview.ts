@@ -4,9 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { requireOrg, requireAuth } from "@/lib/require-auth";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/lib/send-email";
-import { interviewScheduledEmail } from "@/lib/email-templates";
+import { interviewScheduledEmail, interviewCancelledEmail } from "@/lib/email-templates";
 import { generateInterviewICS } from "@/lib/generate-ics";
-import { createMeetEvent } from "@/lib/google-calendar";
+import { createMeetEvent, deleteMeetEvent } from "@/lib/google-calendar";
 import { canEditPipeline } from "@/lib/roles";
 
 export async function scheduleInterviewAction(data: {
@@ -81,11 +81,12 @@ export async function scheduleInterviewAction(data: {
     // event with an auto Meet link. Never let a Calendar failure block
     // scheduling the interview itself.
     let meetingLink: string | null = null;
+    let googleEventId: string | null = null;
     if (org?.googleRefreshToken) {
       try {
         const attendees = [currentApp.candidate.email];
         if (interviewerEmail) attendees.push(interviewerEmail);
-        meetingLink = await createMeetEvent({
+        const calendarEvent = await createMeetEvent({
           refreshToken: org.googleRefreshToken,
           summary: `${data.round} — ${currentApp.job.title}`,
           description: `Interview with ${currentApp.candidate.fullName} for ${currentApp.job.title}. Interviewer: ${data.interviewer}.`,
@@ -93,6 +94,8 @@ export async function scheduleInterviewAction(data: {
           durationMinutes: duration,
           attendeeEmails: attendees,
         });
+        meetingLink = calendarEvent.meetingLink;
+        googleEventId = calendarEvent.eventId;
       } catch (calendarError) {
         console.error("[scheduleInterviewAction] Meet link creation failed, continuing without it:", calendarError);
       }
@@ -108,6 +111,7 @@ export async function scheduleInterviewAction(data: {
           scheduledAt: start,
           durationMinutes: duration,
           meetingLink,
+          googleEventId,
         },
       }),
       prisma.jobApplication.update({
@@ -278,5 +282,78 @@ export async function rateInterviewerAction(interviewId: string, rating: number)
   } catch (error) {
     console.error("[rateInterviewerAction] failed:", error);
     return { error: "Failed to save rating." };
+  }
+}
+
+export async function cancelInterviewAction(interviewId: string) {
+  const ctx = await requireOrg();
+  if (!ctx) return { error: "Unauthorized" };
+  if (!canEditPipeline(ctx.role)) return { error: "Interviewers can't cancel interviews." };
+
+  try {
+    const interview = await prisma.interview.findUnique({
+      where: { id: interviewId },
+      select: {
+        id: true,
+        round: true,
+        scheduledAt: true,
+        applicationId: true,
+        googleEventId: true,
+        application: {
+          select: {
+            job: { select: { organizationId: true, title: true } },
+            candidate: { select: { fullName: true, email: true } },
+          },
+        },
+      },
+    });
+    if (!interview || interview.application.job.organizationId !== ctx.organizationId) {
+      return { error: "Interview not found or unauthorized." };
+    }
+
+    // Best-effort: cancel the Calendar event too, if there is one. Never let
+    // this block the actual cancellation — the org may have disconnected
+    // Google Calendar since this interview was scheduled, for instance.
+    if (interview.googleEventId) {
+      const org = await prisma.organization.findUnique({
+        where: { id: ctx.organizationId },
+        select: { googleRefreshToken: true },
+      });
+      if (org?.googleRefreshToken) {
+        try {
+          await deleteMeetEvent({ refreshToken: org.googleRefreshToken, eventId: interview.googleEventId });
+        } catch (calendarError) {
+          console.error("[cancelInterviewAction] Calendar event deletion failed, continuing:", calendarError);
+        }
+      }
+    }
+
+    await prisma.$transaction([
+      prisma.interview.delete({ where: { id: interviewId } }),
+      prisma.activityLog.create({
+        data: {
+          userId: ctx.userId,
+          applicationId: interview.applicationId,
+          action: "Interview Cancelled",
+          details: `${interview.round} with ${interview.application.candidate.fullName} was cancelled`,
+        },
+      }),
+    ]);
+
+    const { subject, html } = interviewCancelledEmail(
+      interview.application.candidate.fullName,
+      interview.application.job.title,
+      interview.round,
+      interview.scheduledAt
+    );
+    sendEmail(interview.application.candidate.email, subject, html).catch((emailError) => {
+      console.error("[cancelInterviewAction] interview cancelled OK but notification email failed:", emailError);
+    });
+
+    revalidatePath("/dashboard/interviews");
+    return { success: "Interview cancelled." };
+  } catch (error) {
+    console.error("[cancelInterviewAction] failed:", error);
+    return { error: "Failed to cancel interview." };
   }
 }
