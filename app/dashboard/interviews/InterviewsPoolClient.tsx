@@ -39,7 +39,6 @@ function ScorecardForm({
   const [saving, setSaving] = useState(false);
   const router = useRouter();
 
-  // Already has a scorecard — show it read-only, tap to reopen/edit.
   if (interview.result && !open) {
     return (
       <button
