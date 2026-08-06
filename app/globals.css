@@ -129,6 +129,44 @@
   }
 }
 
+@keyframes scan-sweep {
+  0% {
+    top: -18%;
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  46% {
+    top: 104%;
+    opacity: 1;
+  }
+  54% {
+    opacity: 0;
+  }
+  100% {
+    top: 104%;
+    opacity: 0;
+  }
+}
+
+@keyframes chip-in {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  10%,
+  78% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  90% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
 @layer utilities {
   /* Visually-hidden until focused — used for the skip-to-content link */
   .skip-link {
@@ -151,5 +189,14 @@
   }
   .no-scrollbar {
     scrollbar-width: none;
+  }
+
+  /* Faint structural grid for the hero backdrop — restrained, no stock art */
+  .hero-grid {
+    background-image:
+      linear-gradient(to right, color-mix(in oklch, var(--foreground), transparent 95%) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in oklch, var(--foreground), transparent 95%) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, black 40%, transparent 85%);
   }
 }
