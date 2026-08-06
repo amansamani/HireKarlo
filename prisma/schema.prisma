@@ -196,28 +196,25 @@ model JobApplication {
 }
 
 model Interview {
-  id              String         @id @default(cuid())
-  applicationId   String
-  application     JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  id                String    @id @default(cuid())
+  applicationId     String
+  round             String
+  interviewer       String
+  interviewerId     String?
+  googleEventId     String?   // ← the field you added
+  scheduledAt       DateTime
+  durationMinutes   Int       @default(60)
+  meetingLink       String?
+  feedback          String?
+  result            String?
+  rating            Int?
+  interviewerRating Int?
+  reminderSentAt    DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  round           String         // e.g., "Technical 1", "HR Round"
-  interviewer     String         // display name — kept even when interviewerId is set
-  interviewerId   String?        // linked HireKarlo account, when the interviewer is a team member
-  interviewerUser User?          @relation("InterviewerAssignments", fields: [interviewerId], references: [id], onDelete: SetNull)
-  scheduledAt     DateTime
-  durationMinutes Int            @default(60)
-  meetingLink     String?        // auto-filled Google Meet link when org has Calendar connected
-  googleEventId   String?        // Calendar event id, needed to cancel the event on delete
-  feedback        String?
-  result          String?        // e.g., "PASSED", "FAILED", "PENDING"
-  rating          Int?           // 1-5 scorecard rating of the CANDIDATE, set by the interviewer
-  interviewerRating Int?         // 1-5 rating OF the interviewer's session, set by the recruiter afterward
-  reminderSentAt  DateTime?
-
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-
-  @@index([interviewerId])
+  application JobApplication @relation(fields: [applicationId], references: [id])
+  interviewerUser User?      @relation("InterviewerAssignments", fields: [interviewerId], references: [id])  // ← ADD THIS LINE
 }
 model ActivityLog {
   id            String          @id @default(cuid())

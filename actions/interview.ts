@@ -18,6 +18,7 @@ export async function scheduleInterviewAction(data: {
   jobId: string;
   targetStage: string;
   durationMinutes?: number;
+  timezone?: string;
 }) {
   const ctx = await requireOrg();
   if (!ctx) return { error: "Unauthorized" };
@@ -82,10 +83,12 @@ export async function scheduleInterviewAction(data: {
     // scheduling the interview itself.
     let meetingLink: string | null = null;
     let googleEventId: string | null = null;
+    
     if (org?.googleRefreshToken) {
       try {
         const attendees = [currentApp.candidate.email];
         if (interviewerEmail) attendees.push(interviewerEmail);
+        
         const calendarEvent = await createMeetEvent({
           refreshToken: org.googleRefreshToken,
           summary: `${data.round} — ${currentApp.job.title}`,
@@ -93,14 +96,17 @@ export async function scheduleInterviewAction(data: {
           start,
           durationMinutes: duration,
           attendeeEmails: attendees,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, // ✅ pass timezone
         });
+        
         meetingLink = calendarEvent.meetingLink;
         googleEventId = calendarEvent.eventId;
       } catch (calendarError) {
-        console.error("[scheduleInterviewAction] Meet link creation failed, continuing without it:", calendarError);
+        console.error("[scheduleInterviewAction] Meet link creation failed:", calendarError);
       }
     }
 
+    // ✅ Now include googleEventId in the create
     await prisma.$transaction([
       prisma.interview.create({
         data: {
@@ -111,7 +117,7 @@ export async function scheduleInterviewAction(data: {
           scheduledAt: start,
           durationMinutes: duration,
           meetingLink,
-          googleEventId,
+          googleEventId, // ✅ now exists in schema
         },
       }),
       prisma.jobApplication.update({

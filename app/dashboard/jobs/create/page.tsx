@@ -39,8 +39,6 @@ import { cn } from "@/lib/utils";
 
 const JOB_TYPES = ["FULL_TIME", "PART_TIME", "CONTRACT", "INTERNSHIP", "REMOTE"] as const;
 
-// ✅ No .default() / .optional() → z.input === z.infer → zodResolver types cleanly.
-// interviewRounds is attached manually at submit (plain state, no useFieldArray).
 const CreateJobSchema = z.object({
   title: z.string().min(1, "Job title is required").max(100),
   department: z.string().min(1, "Department is required").max(50),
@@ -49,13 +47,13 @@ const CreateJobSchema = z.object({
   description: z.string().min(10, "Description must be at least 10 characters"),
 });
 
-const DEFAULT_ROUNDS = ["Phone Screen", "Technical Round", "HR Round", "Final Interview"];
+const DEFAULT_ROUNDS = ["Phone Screen", "Technical Round", "HR Round"];
 
 export default function CreateJobPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
-  // ✅ Custom interview rounds — plain state (useFieldArray can't type string[])
+  // ✅ Custom rounds — plain state (Applied / Offer / Rejected are auto-added)
   const [rounds, setRounds] = useState<string[]>(DEFAULT_ROUNDS);
   const [newRound, setNewRound] = useState("");
 
@@ -90,9 +88,7 @@ export default function CreateJobPage() {
   }
 
   async function onSubmit(values: z.infer<typeof CreateJobSchema>) {
-    if (rounds.length === 0) return toast.error("Add at least one interview round.");
     setIsLoading(true);
-    // ✅ Server schema expects interviewRounds: string[]
     const res = await createJobAction({ ...values, interviewRounds: rounds });
     setIsLoading(false);
 
@@ -104,6 +100,8 @@ export default function CreateJobPage() {
       router.refresh();
     }
   }
+
+  const finalPipeline = ["Applied", ...(rounds.length > 0 ? rounds : ["Interview"]), "Offer", "Rejected"];
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 animate-in fade-in duration-500">
@@ -257,12 +255,20 @@ export default function CreateJobPage() {
                   <div>
                     <h3 className="text-sm font-semibold">Interview Pipeline</h3>
                     <p className="text-xs text-muted-foreground">
-                      Define the stages every candidate will move through.
+                      Define the stages between Applied and Offer.
                     </p>
                   </div>
                 </div>
 
                 <div className="space-y-2">
+                  {rounds.length === 0 && (
+                    <div className="rounded-xl border border-dashed border-border/60 bg-background/30 p-4 text-center text-xs text-muted-foreground">
+                      No custom rounds — the default pipeline will be used:
+                      <span className="mt-1 block font-semibold text-foreground">
+                        Applied → Interview → Offer → Rejected
+                      </span>
+                    </div>
+                  )}
                   {rounds.map((round, index) => (
                     <div
                       key={index}
@@ -281,8 +287,7 @@ export default function CreateJobPage() {
                       <button
                         type="button"
                         onClick={() => removeRound(index)}
-                        disabled={rounds.length <= 1}
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-30"
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                         aria-label={`Remove round ${index + 1}`}
                       >
                         <X className="h-3.5 w-3.5" aria-hidden="true" />
@@ -316,8 +321,11 @@ export default function CreateJobPage() {
                 </div>
 
                 <p className="text-[11px] text-muted-foreground">
-                  Candidates land in &quot;Applied&quot; first, then move through these stages in
-                  order. A &quot;Rejected&quot; column is always added automatically.
+                  <span className="font-semibold text-foreground">Applied</span>,{" "}
+                  <span className="font-semibold text-foreground">Offer</span> and{" "}
+                  <span className="font-semibold text-foreground">Rejected</span> are always
+                  included automatically. Add your own interview rounds in between — or leave it
+                  empty for the default: Applied → Interview → Offer → Rejected.
                 </p>
               </div>
             </div>
@@ -429,26 +437,35 @@ export default function CreateJobPage() {
                   "Your job description will appear here exactly as candidates see it on the public apply page."}
               </p>
 
-              {rounds.length > 0 && (
-                <div className="border-t border-border/40 pt-3">
-                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Pipeline stages
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {rounds.map((r, i) => (
+              {/* ✅ Final pipeline preview */}
+              <div className="border-t border-border/40 pt-3">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Final pipeline
+                </p>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {finalPipeline.map((r, i) => (
+                    <span key={i} className="flex items-center gap-1.5">
                       <span
-                        key={i}
-                        className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] font-medium text-foreground"
+                        className={cn(
+                          "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                          r === "Applied" && "border-chart-2/30 bg-chart-2/10 text-chart-2",
+                          r === "Offer" && "border-success/30 bg-success/10 text-success",
+                          r === "Rejected" && "border-destructive/30 bg-destructive/10 text-destructive",
+                          r !== "Applied" &&
+                            r !== "Offer" &&
+                            r !== "Rejected" &&
+                            "border-primary/20 bg-primary/5 text-foreground"
+                        )}
                       >
-                        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary/20 text-[9px] font-bold text-primary">
-                          {i + 1}
-                        </span>
                         {r}
                       </span>
-                    ))}
-                  </div>
+                      {i < finalPipeline.length - 1 && (
+                        <ArrowRight className="h-3 w-3 text-muted-foreground/50" aria-hidden="true" />
+                      )}
+                    </span>
+                  ))}
                 </div>
-              )}
+              </div>
             </div>
           </div>
 

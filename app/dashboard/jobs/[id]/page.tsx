@@ -22,17 +22,26 @@ export default async function JobPipelinePage({
     );
   }
 
-  // ✅ shape-proof: accepts { job, applications } or { job, applicants }
-  const job = raw.job ?? null;
+  const rawJob = raw.job ?? null;
   const applications = raw.applications ?? raw.applicants ?? [];
 
-  if (!job) {
+  if (!rawJob) {
     return (
       <div className="mx-auto max-w-5xl rounded-2xl border border-dashed border-border/60 bg-card/30 py-16 text-center">
         <p className="text-base font-semibold">Job not found</p>
       </div>
     );
   }
+
+  const job = {
+    id: rawJob.id ?? id,
+    title: rawJob.title ?? "Pipeline",
+    department: rawJob.department ?? "",
+    location: rawJob.location ?? "",
+    type: rawJob.type ?? "FULL_TIME",
+    status: rawJob.status ?? "OPEN",
+    interviewRounds: rawJob.interviewRounds ?? [],
+  };
 
   return <JobPipelineClient job={job} initialApplications={applications} />;
 }

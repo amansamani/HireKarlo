@@ -80,9 +80,11 @@ export async function createMeetEvent(params: {
   start: Date;
   durationMinutes: number;
   attendeeEmails: string[];
+  timezone?: string; // ✅ NEW — defaults to Asia/Kolkata
 }): Promise<{ meetingLink: string | null; eventId: string | null }> {
   const accessToken = await refreshAccessToken(params.refreshToken);
   const end = new Date(params.start.getTime() + params.durationMinutes * 60_000);
+  const tz = params.timezone || "Asia/Kolkata"; // ✅
 
   const res = await fetch(
     "https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all",
@@ -95,8 +97,8 @@ export async function createMeetEvent(params: {
       body: JSON.stringify({
         summary: params.summary,
         description: params.description,
-        start: { dateTime: params.start.toISOString(), timeZone: "Asia/Kolkata" },
-        end: { dateTime: end.toISOString(), timeZone: "Asia/Kolkata" },
+        start: { dateTime: params.start.toISOString(), timeZone: tz }, // ✅
+        end: { dateTime: end.toISOString(), timeZone: tz },             // ✅
         attendees: params.attendeeEmails.map((email) => ({ email })),
         conferenceData: {
           createRequest: {
