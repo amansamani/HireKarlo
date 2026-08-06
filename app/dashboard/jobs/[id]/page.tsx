@@ -1,26 +1,38 @@
-import { prisma } from "@/lib/prisma"; // ← adjust if your file is lib/db.ts
-import PublicApplyClient from "./PublicApplyClient";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+import { getJobApplicantsAction } from "@/actions/application";
+import JobPipelineClient from "./JobPipelineClient";
 
-export default async function PublicApplyPage({
+export default async function JobPipelinePage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const job = await prisma.job.findUnique({ where: { id } });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw: any = await getJobApplicantsAction(id);
 
-  if (!job || job.status !== "OPEN") {
+  if (!raw || raw.error) {
     return (
-      <div className="flex min-h-dvh items-center justify-center p-6">
-        <div className="max-w-md rounded-3xl border border-border/40 bg-card/70 p-10 text-center backdrop-blur-xl">
-          <p className="text-lg font-bold">This opening is closed</p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            The job you&apos;re looking for is no longer accepting applications.
-          </p>
-        </div>
+      <div className="mx-auto max-w-5xl rounded-2xl border border-dashed border-border/60 bg-card/30 py-16 text-center">
+        <p className="text-base font-semibold">Pipeline not found</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {raw?.error ?? "This job no longer exists."}
+        </p>
       </div>
     );
   }
 
-  return <PublicApplyClient job={job} />;
+  // ✅ shape-proof: accepts { job, applications } or { job, applicants }
+  const job = raw.job ?? null;
+  const applications = raw.applications ?? raw.applicants ?? [];
+
+  if (!job) {
+    return (
+      <div className="mx-auto max-w-5xl rounded-2xl border border-dashed border-border/60 bg-card/30 py-16 text-center">
+        <p className="text-base font-semibold">Job not found</p>
+      </div>
+    );
+  }
+
+  return <JobPipelineClient job={job} initialApplications={applications} />;
 }

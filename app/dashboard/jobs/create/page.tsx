@@ -18,40 +18,82 @@ import {
   ArrowRight,
   Eye,
   Loader2,
+  Plus,
+  X,
+  GripVertical,
+  ListChecks,
 } from "lucide-react";
 
-// ✅ FIXED — createJobAction lives in create-job.ts
 import { createJobAction } from "@/actions/create-job";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { cn } from "@/lib/utils";
 
 const JOB_TYPES = ["FULL_TIME", "PART_TIME", "CONTRACT", "INTERNSHIP", "REMOTE"] as const;
 
+// ✅ No .default() / .optional() → z.input === z.infer → zodResolver types cleanly.
+// interviewRounds is attached manually at submit (plain state, no useFieldArray).
 const CreateJobSchema = z.object({
-  title: z.string().min(3, "Title must be at least 3 characters"),
-  department: z.string().min(2, "Department is required"),
-  location: z.string().min(2, "Location is required"),
-  type: z.enum(JOB_TYPES),
-  description: z.string().min(30, "Description must be at least 30 characters"),
+  title: z.string().min(1, "Job title is required").max(100),
+  department: z.string().min(1, "Department is required").max(50),
+  location: z.string().min(1, "Location is required").max(100),
+  type: z.string().min(1, "Employment type is required"),
+  description: z.string().min(10, "Description must be at least 10 characters"),
 });
+
+const DEFAULT_ROUNDS = ["Phone Screen", "Technical Round", "HR Round", "Final Interview"];
 
 export default function CreateJobPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
+  // ✅ Custom interview rounds — plain state (useFieldArray can't type string[])
+  const [rounds, setRounds] = useState<string[]>(DEFAULT_ROUNDS);
+  const [newRound, setNewRound] = useState("");
+
   const form = useForm<z.infer<typeof CreateJobSchema>>({
     resolver: zodResolver(CreateJobSchema),
-    defaultValues: { title: "", department: "", location: "", type: "FULL_TIME", description: "" },
+    defaultValues: {
+      title: "",
+      department: "",
+      location: "",
+      type: "FULL_TIME",
+      description: "",
+    },
   });
 
   const preview = form.watch();
   const descLength = preview.description?.length ?? 0;
 
+  function updateRound(index: number, value: string) {
+    setRounds((r) => r.map((item, i) => (i === index ? value : item)));
+  }
+
+  function addRound() {
+    const trimmed = newRound.trim();
+    if (!trimmed) return toast.error("Round name can't be empty.");
+    if (rounds.includes(trimmed)) return toast.error("That round already exists.");
+    setRounds((r) => [...r, trimmed]);
+    setNewRound("");
+  }
+
+  function removeRound(index: number) {
+    setRounds((r) => r.filter((_, i) => i !== index));
+  }
+
   async function onSubmit(values: z.infer<typeof CreateJobSchema>) {
+    if (rounds.length === 0) return toast.error("Add at least one interview round.");
     setIsLoading(true);
-    const res = await createJobAction(values);
+    // ✅ Server schema expects interviewRounds: string[]
+    const res = await createJobAction({ ...values, interviewRounds: rounds });
     setIsLoading(false);
 
     if (res?.error) {
@@ -76,20 +118,23 @@ export default function CreateJobPage() {
         </Link>
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Create Position</h2>
-          <p className="text-sm text-muted-foreground">Post a new opening and get a public apply link instantly.</p>
+          <p className="text-sm text-muted-foreground">
+            Post a new opening with your own custom interview pipeline.
+          </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_380px]">
-        {/* Form */}
+        {/* ─── Form column ─── */}
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Basic info */}
             <div className="relative overflow-hidden rounded-2xl border border-border/40 bg-gradient-to-br from-card to-background p-6 shadow-sm">
               <div className="absolute top-0 right-0 w-40 h-40 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
               <div className="relative z-10 space-y-5">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 border border-primary/20">
-                    <Briefcase className="h-5 w-5 text-primary" />
+                    <Briefcase className="h-5 w-5 text-primary" aria-hidden="true" />
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold">Basic Information</h3>
@@ -102,9 +147,15 @@ export default function CreateJobPage() {
                   name="title"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Job Title</FormLabel>
+                      <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Job Title
+                      </FormLabel>
                       <FormControl>
-                        <Input placeholder="Senior Frontend Engineer" className="h-12 rounded-xl border-border/60 bg-background/50 transition-all focus:border-primary/60 focus:ring-2 focus:ring-primary/20" {...field} />
+                        <Input
+                          placeholder="Senior Frontend Engineer"
+                          className="h-12 rounded-xl border-border/60 bg-background/50 transition-all focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -117,9 +168,15 @@ export default function CreateJobPage() {
                     name="department"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Department</FormLabel>
+                        <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Department
+                        </FormLabel>
                         <FormControl>
-                          <Input placeholder="Engineering" className="h-12 rounded-xl border-border/60 bg-background/50 transition-all focus:border-primary/60 focus:ring-2 focus:ring-primary/20" {...field} />
+                          <Input
+                            placeholder="Engineering"
+                            className="h-12 rounded-xl border-border/60 bg-background/50 transition-all focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                            {...field}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -130,9 +187,15 @@ export default function CreateJobPage() {
                     name="location"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Location</FormLabel>
+                        <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Location
+                        </FormLabel>
                         <FormControl>
-                          <Input placeholder="Mumbai / Remote" className="h-12 rounded-xl border-border/60 bg-background/50 transition-all focus:border-primary/60 focus:ring-2 focus:ring-primary/20" {...field} />
+                          <Input
+                            placeholder="Mumbai / Remote"
+                            className="h-12 rounded-xl border-border/60 bg-background/50 transition-all focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                            {...field}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -142,11 +205,12 @@ export default function CreateJobPage() {
               </div>
             </div>
 
+            {/* Employment type */}
             <div className="relative overflow-hidden rounded-2xl border border-border/40 bg-gradient-to-br from-card to-background p-6 shadow-sm">
               <div className="relative z-10 space-y-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-chart-2/10 border border-chart-2/20">
-                    <Clock className="h-5 w-5 text-chart-2" />
+                    <Clock className="h-5 w-5 text-chart-2" aria-hidden="true" />
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold">Employment Type</h3>
@@ -183,15 +247,93 @@ export default function CreateJobPage() {
               </div>
             </div>
 
+            {/* ✅ Custom interview rounds */}
             <div className="relative overflow-hidden rounded-2xl border border-border/40 bg-gradient-to-br from-card to-background p-6 shadow-sm">
               <div className="relative z-10 space-y-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-warning/10 border border-warning/20">
-                    <FileText className="h-5 w-5 text-warning" />
+                    <ListChecks className="h-5 w-5 text-warning" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold">Interview Pipeline</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Define the stages every candidate will move through.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {rounds.map((round, index) => (
+                    <div
+                      key={index}
+                      className="group flex items-center gap-2 rounded-xl border border-border/40 bg-background/50 px-3 py-2.5 animate-in fade-in slide-in-from-top-1 duration-200"
+                    >
+                      <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary/10 text-[10px] font-bold text-primary">
+                        {index + 1}
+                      </span>
+                      <Input
+                        value={round}
+                        onChange={(e) => updateRound(index, e.target.value)}
+                        className="h-8 flex-1 border-0 bg-transparent p-0 text-sm font-medium focus-visible:ring-0"
+                        aria-label={`Interview round ${index + 1}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeRound(index)}
+                        disabled={rounds.length <= 1}
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-30"
+                        aria-label={`Remove round ${index + 1}`}
+                      >
+                        <X className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <Input
+                    value={newRound}
+                    onChange={(e) => setNewRound(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addRound();
+                      }
+                    }}
+                    placeholder="Add a round (e.g. System Design, Culture Fit)"
+                    className="h-10 flex-1 rounded-xl border-border/60 bg-background/50 text-sm focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addRound}
+                    className="h-10 gap-1.5 rounded-xl text-xs font-semibold"
+                  >
+                    <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Add
+                  </Button>
+                </div>
+
+                <p className="text-[11px] text-muted-foreground">
+                  Candidates land in &quot;Applied&quot; first, then move through these stages in
+                  order. A &quot;Rejected&quot; column is always added automatically.
+                </p>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="relative overflow-hidden rounded-2xl border border-border/40 bg-gradient-to-br from-card to-background p-6 shadow-sm">
+              <div className="relative z-10 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-success/10 border border-success/20">
+                    <FileText className="h-5 w-5 text-success" aria-hidden="true" />
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold">Job Description</h3>
-                    <p className="text-xs text-muted-foreground">Gemini scores every resume against this text — be specific.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Gemini scores every resume against this text — be specific.
+                    </p>
                   </div>
                 </div>
 
@@ -202,16 +344,23 @@ export default function CreateJobPage() {
                     <FormItem>
                       <FormControl>
                         <textarea
-                          placeholder={"Responsibilities, requirements, tech stack, nice-to-haves...\n\nThe more detail you provide, the better the AI match scores will be."}
+                          placeholder={
+                            "Responsibilities, requirements, tech stack, nice-to-haves...\n\nThe more detail you provide, the better the AI match scores will be."
+                          }
                           rows={8}
-                          className="w-full rounded-xl border border-border/60 bg-background/50 p-4 text-sm transition-all focus:border-primary/60 focus:ring-2 focus:ring-primary/20 focus:outline-none resize-y"
+                          className="w-full resize-y rounded-xl border border-border/60 bg-background/50 p-4 text-sm transition-all focus:border-primary/60 focus:outline-none focus:ring-2 focus:ring-primary/20"
                           {...field}
                         />
                       </FormControl>
                       <div className="flex items-center justify-between">
                         <FormMessage />
-                        <span className={cn("text-[11px] font-mono", descLength >= 30 ? "text-success" : "text-muted-foreground")}>
-                          {descLength} / 30+ chars
+                        <span
+                          className={cn(
+                            "text-[11px] font-mono",
+                            descLength >= 10 ? "text-success" : "text-muted-foreground"
+                          )}
+                        >
+                          {descLength} / 10+ chars
                         </span>
                       </div>
                     </FormItem>
@@ -223,57 +372,93 @@ export default function CreateJobPage() {
             <Button
               type="submit"
               disabled={isLoading}
-              className="group h-12 w-full rounded-xl font-semibold shadow-lg shadow-primary/20 transition-all hover:shadow-primary/30 hover:scale-[1.01] sm:w-auto sm:px-8"
+              className="group h-12 w-full rounded-xl font-semibold shadow-lg shadow-primary/20 transition-all hover:scale-[1.01] hover:shadow-primary/30 sm:w-auto sm:px-8"
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Posting job...
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Posting job...
                 </>
               ) : (
                 <>
                   Post Job & Get Link
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                  <ArrowRight
+                    className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                    aria-hidden="true"
+                  />
                 </>
               )}
             </Button>
           </form>
         </Form>
 
-        {/* Live preview */}
+        {/* ─── Live preview column ─── */}
         <div className="space-y-4 lg:sticky lg:top-8 lg:self-start">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            <Eye className="h-3.5 w-3.5" /> Live preview
+            <Eye className="h-3.5 w-3.5" aria-hidden="true" /> Live preview
           </div>
 
           <div className="relative overflow-hidden rounded-2xl border border-border/40 bg-gradient-to-br from-card to-background p-6 shadow-lg">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
+            <div className="absolute top-0 right-0 w-32 h-32 -translate-y-1/2 translate-x-1/2 rounded-full bg-primary/10 blur-2xl" />
             <div className="relative z-10 space-y-4">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-success/30 bg-success/10 px-2.5 py-1 text-[10px] font-semibold text-success">
-                <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" /> OPEN
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" /> OPEN
               </span>
+
               <div>
-                <h4 className="text-lg font-bold tracking-tight text-foreground">{preview.title || "Job title preview"}</h4>
+                <h4 className="text-lg font-bold tracking-tight text-foreground">
+                  {preview.title || "Job title preview"}
+                </h4>
                 <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                  <span className="flex items-center gap-1 rounded-lg bg-muted/50 px-2 py-1"><Building2 className="h-3 w-3" /> {preview.department || "Department"}</span>
-                  <span className="flex items-center gap-1 rounded-lg bg-muted/50 px-2 py-1"><MapPin className="h-3 w-3" /> {preview.location || "Location"}</span>
-                  <span className="flex items-center gap-1 rounded-lg bg-muted/50 px-2 py-1"><Clock className="h-3 w-3" /> {preview.type.replace("_", " ").toLowerCase()}</span>
+                  <span className="flex items-center gap-1 rounded-lg bg-muted/50 px-2 py-1">
+                    <Building2 className="h-3 w-3" aria-hidden="true" />
+                    {preview.department || "Department"}
+                  </span>
+                  <span className="flex items-center gap-1 rounded-lg bg-muted/50 px-2 py-1">
+                    <MapPin className="h-3 w-3" aria-hidden="true" />
+                    {preview.location || "Location"}
+                  </span>
+                  <span className="flex items-center gap-1 rounded-lg bg-muted/50 px-2 py-1">
+                    <Clock className="h-3 w-3" aria-hidden="true" />
+                    {preview.type.replace("_", " ").toLowerCase()}
+                  </span>
                 </div>
               </div>
-              <p className="line-clamp-5 whitespace-pre-line text-xs leading-relaxed text-muted-foreground">
-                {preview.description || "Your job description will appear here exactly as candidates see it on the public apply page."}
+
+              <p className="line-clamp-4 whitespace-pre-line text-xs leading-relaxed text-muted-foreground">
+                {preview.description ||
+                  "Your job description will appear here exactly as candidates see it on the public apply page."}
               </p>
-              <div className="rounded-xl border border-dashed border-border/60 p-3 text-center">
-                <p className="text-[11px] font-medium text-foreground">Drop your resume</p>
-                <p className="text-[10px] text-muted-foreground">PDF or DOCX · no login required</p>
-              </div>
+
+              {rounds.length > 0 && (
+                <div className="border-t border-border/40 pt-3">
+                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Pipeline stages
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {rounds.map((r, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] font-medium text-foreground"
+                      >
+                        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary/20 text-[9px] font-bold text-primary">
+                          {i + 1}
+                        </span>
+                        {r}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
             <div className="flex gap-3">
-              <Sparkles className="h-4 w-4 shrink-0 text-primary mt-0.5" />
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
               <p className="text-xs leading-relaxed text-muted-foreground">
-                <span className="font-semibold text-foreground">Pro tip:</span> list must-have skills as keywords. Gemini matches resumes against this exact text, so specific requirements = sharper scores.
+                <span className="font-semibold text-foreground">Pro tip:</span> specific round
+                names like &quot;System Design (60min)&quot; produce sharper AI scores than
+                generic &quot;Technical&quot;.
               </p>
             </div>
           </div>
