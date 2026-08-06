@@ -1,63 +1,26 @@
-import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import PublicJobApplyForm from "./PublicJobApplyForm";
+import { prisma } from "@/lib/prisma"; // ← use "@/lib/db" if that's your file name
+import PublicApplyClient from "@/app/dashboard/jobs/[id]/PublicApplyClient";
 
-async function getPublicJob(jobId: string) {
-  return prisma.job.findUnique({
-    where: { id: jobId },
-    select: {
-      title: true,
-      department: true,
-      location: true,
-      type: true,
-    },
-  });
-}
-
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}): Promise<Metadata> {
-  const { id } = await params;
-  const job = await getPublicJob(id);
-
-  if (!job) {
-    return { title: "Job not found" };
-  }
-
-  const description = `${job.department} · ${job.location} · ${job.type} — Apply in minutes with just a resume.`;
-
-  return {
-    title: job.title,
-    description,
-    openGraph: {
-      title: job.title,
-      description,
-      type: "website",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: job.title,
-      description,
-    },
-  };
-}
-
-export default async function PublicJobApplyPage({
+export default async function PublicApplyPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id: jobId } = await params;
-  const job = await getPublicJob(jobId);
+  const { id } = await params;
+  const job = await prisma.job.findUnique({ where: { id } });
 
-  if (!job) {
-    notFound();
+  if (!job || job.status !== "OPEN") {
+    return (
+      <div className="flex min-h-dvh items-center justify-center p-6">
+        <div className="max-w-md rounded-3xl border border-border/40 bg-card/70 p-10 text-center backdrop-blur-xl shadow-2xl">
+          <p className="text-lg font-bold">This opening is closed</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            The job you&apos;re looking for is no longer accepting applications.
+          </p>
+        </div>
+      </div>
+    );
   }
 
-  const jobMeta = `${job.department} · ${job.location} · ${job.type}`;
-
-  return <PublicJobApplyForm jobId={jobId} jobTitle={job.title} jobMeta={jobMeta} />;
+  return <PublicApplyClient job={job} />;
 }

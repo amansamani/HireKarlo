@@ -1,179 +1,180 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import Link from "next/link";
-import { KanbanSquare, Sparkles, MailCheck, Check, X, ShieldAlert } from "lucide-react";
+import Image from "next/image";
+import { ShieldCheck, Check, X, Loader2, ArrowRight } from "lucide-react";
 
+// ✅ resetPasswordAction needs { email, token, password }
 import { resetPasswordAction } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { AuthBrandPanel } from "@/components/layout/auth-brand-panel";
 import { cn } from "@/lib/utils";
 
-// Kept in sync with the server-side rule in actions/auth.ts.
-const ResetPasswordFormSchema = z.object({
-  password: z
-    .string()
-    .min(8, "At least 8 characters")
-    .regex(/[A-Z]/, "At least one uppercase letter")
-    .regex(/[0-9]/, "At least one number")
-    .regex(/[^A-Za-z0-9]/, "At least one special character"),
-});
+const Schema = z
+  .object({
+    password: z
+      .string()
+      .min(8, "At least 8 characters")
+      .regex(/[A-Z]/, "One uppercase letter")
+      .regex(/[0-9]/, "One number")
+      .regex(/[^A-Za-z0-9]/, "One special character"),
+    confirm: z.string(),
+  })
+  .refine((d) => d.password === d.confirm, { path: ["confirm"], message: "Passwords don't match" });
 
-const passwordChecks = [
+const checks = [
   { label: "8+ characters", test: (v: string) => v.length >= 8 },
-  { label: "One uppercase letter", test: (v: string) => /[A-Z]/.test(v) },
-  { label: "One number", test: (v: string) => /[0-9]/.test(v) },
-  { label: "One special character", test: (v: string) => /[^A-Za-z0-9]/.test(v) },
+  { label: "Uppercase letter", test: (v: string) => /[A-Z]/.test(v) },
+  { label: "Number", test: (v: string) => /[0-9]/.test(v) },
+  { label: "Special character", test: (v: string) => /[^A-Za-z0-9]/.test(v) },
 ];
 
-function PasswordChecklist({ password }: { password: string }) {
+function ResetForm() {
+  const params = useSearchParams();
+  const token = params.get("token") ?? "";
+  const email = params.get("email") ?? ""; // ✅ FIXED — required by the action
+  const [isLoading, setIsLoading] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const form = useForm<z.infer<typeof Schema>>({
+    resolver: zodResolver(Schema),
+    defaultValues: { password: "", confirm: "" },
+  });
+  const password = form.watch("password");
+
+  async function onSubmit(values: z.infer<typeof Schema>) {
+    setIsLoading(true);
+    // ✅ FIXED call — includes email
+    const res = await resetPasswordAction({ email, token, password: values.password });
+    setIsLoading(false);
+    if (res?.error) toast.error(res.error);
+    else setDone(true);
+  }
+
   return (
-    <ul className="grid grid-cols-2 gap-x-3 gap-y-1 pt-1">
-      {passwordChecks.map(({ label, test }) => {
-        const met = test(password);
-        return (
-          <li
-            key={label}
-            className={cn(
-              "flex items-center gap-1.5 text-xs transition-colors",
-              met ? "text-emerald-500" : "text-muted-foreground"
-            )}
-          >
-            {met ? <Check className="size-3.5 shrink-0" /> : <X className="size-3.5 shrink-0" />}
-            {label}
-          </li>
-        );
-      })}
-    </ul>
+    <div className="w-full max-w-md animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="relative overflow-hidden rounded-3xl border border-border/40 bg-card/70 backdrop-blur-xl p-8 shadow-2xl shadow-black/10">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
+
+        {done ? (
+          <div className="relative z-10 space-y-6 text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-success/30 bg-success/10">
+              <ShieldCheck className="h-8 w-8 text-success" />
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-2xl font-bold tracking-tight">Password updated</h1>
+              <p className="text-sm text-muted-foreground">
+                Your password has been changed. Log in with your new credentials.
+              </p>
+            </div>
+            <Link href="/login" className="block">
+              <Button className="group h-12 w-full rounded-xl font-semibold shadow-lg shadow-primary/20">
+                Go to login
+                <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+              </Button>
+            </Link>
+          </div>
+        ) : (
+          <div className="relative z-10 space-y-6">
+            <div className="space-y-2 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-border/40 bg-background/50">
+                <ShieldCheck className="h-6 w-6 text-primary" />
+              </div>
+              <h1 className="text-2xl font-bold tracking-tight">Set a new password</h1>
+              <p className="text-sm text-muted-foreground">Choose a strong password for your account.</p>
+            </div>
+
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        New Password
+                      </FormLabel>
+                      <FormControl>
+                        <PasswordInput
+                          placeholder="••••••••"
+                          className="h-12 rounded-xl border-border/60 bg-background/50 focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                          {...field}
+                          disabled={isLoading}
+                        />
+                      </FormControl>
+                      <ul className="grid grid-cols-2 gap-x-3 gap-y-1.5 pt-2">
+                        {checks.map(({ label, test }) => {
+                          const met = test(password);
+                          return (
+                            <li
+                              key={label}
+                              className={cn(
+                                "flex items-center gap-1.5 text-[11px] transition-colors",
+                                met ? "text-emerald-500 font-medium" : "text-muted-foreground"
+                              )}
+                            >
+                              {met ? <Check className="size-3" /> : <X className="size-3" />} {label}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="confirm"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Confirm Password
+                      </FormLabel>
+                      <FormControl>
+                        <PasswordInput
+                          placeholder="••••••••"
+                          className="h-12 rounded-xl border-border/60 bg-background/50 focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                          {...field}
+                          disabled={isLoading}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button
+                  type="submit"
+                  disabled={isLoading}
+                  className="h-12 w-full rounded-xl font-semibold shadow-lg shadow-primary/20 hover:shadow-primary/30"
+                >
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update password"}
+                </Button>
+              </form>
+            </Form>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
 export default function ResetPasswordPage() {
-  const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
-  // null = no token/email in the URL, "checking" = not read yet (avoids a
-  // flash of the invalid-link state during hydration — window.location isn't
-  // available on the server render, same reason login/page.tsx defers its
-  // searchParams read into useEffect instead of next/navigation's
-  // useSearchParams).
-  const [linkParams, setLinkParams] = useState<{ email: string; token: string } | null | "checking">("checking");
-
-  const form = useForm<z.infer<typeof ResetPasswordFormSchema>>({
-    resolver: zodResolver(ResetPasswordFormSchema),
-    defaultValues: { password: "" },
-  });
-
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const password = form.watch("password");
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const email = params.get("email");
-    const token = params.get("token");
-    setLinkParams(email && token ? { email, token } : null);
-  }, []);
-
-  async function onSubmit(values: z.infer<typeof ResetPasswordFormSchema>) {
-    if (!linkParams || linkParams === "checking") return;
-    setIsLoading(true);
-    const res = await resetPasswordAction({ ...linkParams, password: values.password });
-    setIsLoading(false);
-
-    if (res?.error) {
-      toast.error(res.error);
-    } else {
-      toast.success("Password updated — you can log in now.");
-      router.push("/login");
-    }
-  }
-
   return (
-    <div className="relative isolate grid min-h-dvh grid-cols-1 lg:grid-cols-2">
-      <div
-        className="pointer-events-none fixed inset-0 -z-10 bg-[url(/hero-bg.webp)] bg-cover bg-top bg-no-repeat"
-        aria-hidden="true"
-      />
-      <AuthBrandPanel
-        heading="Choose a new password"
-        subheading="Almost there — set a fresh password to get back into your pipeline."
-        points={[
-          { icon: KanbanSquare, text: "Kanban pipeline across every open role" },
-          { icon: Sparkles, text: "AI match scores on every resume" },
-          { icon: MailCheck, text: "Candidates notified automatically" },
-        ]}
-      />
-
-      <div className="flex items-center justify-center p-4 sm:p-8">
-        <div className="animate-in fade-in-0 slide-in-from-bottom-4 w-full max-w-md space-y-6 rounded-2xl border border-white/10 bg-card/60 p-6 shadow-xl backdrop-blur-xl backdrop-saturate-150 duration-700 sm:p-8">
-          {linkParams === null ? (
-            <div className="space-y-4 text-center">
-              <ShieldAlert className="mx-auto size-10 text-destructive" />
-              <div className="space-y-1.5">
-                <h1 className="text-xl font-semibold tracking-tight">Invalid reset link</h1>
-                <p className="text-sm text-muted-foreground">
-                  This link is missing or malformed. Request a new one from the login page.
-                </p>
-              </div>
-              <Link
-                href="/forgot-password"
-                className="inline-block font-medium text-primary hover:underline underline-offset-4"
-              >
-                Request a new link
-              </Link>
-            </div>
-          ) : (
-            <>
-              <div className="space-y-1.5 text-center lg:text-left">
-                <h1 className="text-2xl font-semibold tracking-tight">Set a new password</h1>
-                <p className="text-sm text-muted-foreground">Choose something you haven&apos;t used before.</p>
-              </div>
-
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>New Password</FormLabel>
-                        <FormControl>
-                          <PasswordInput
-                            placeholder="••••••••"
-                            {...field}
-                            disabled={isLoading || linkParams === "checking"}
-                          />
-                        </FormControl>
-                        <PasswordChecklist password={password} />
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button
-                    type="submit"
-                    className="h-10 w-full font-semibold"
-                    disabled={isLoading || linkParams === "checking"}
-                  >
-                    {isLoading ? "Updating..." : "Update password"}
-                  </Button>
-                </form>
-              </Form>
-
-              <p className="text-center text-sm text-muted-foreground">
-                <Link href="/login" className="font-medium text-primary hover:underline underline-offset-4">
-                  Back to login
-                </Link>
-              </p>
-            </>
-          )}
-        </div>
+    <div className="relative isolate flex min-h-dvh items-center justify-center p-6">
+      <div className="pointer-events-none fixed inset-0 -z-10">
+        <Image src="/hero-bg.webp" alt="" fill sizes="100vw" className="object-cover opacity-30" priority />
+        <div className="absolute inset-0 bg-gradient-to-br from-background/80 via-background/90 to-background" />
       </div>
+      <Suspense fallback={null}>
+        <ResetForm />
+      </Suspense>
     </div>
   );
 }
