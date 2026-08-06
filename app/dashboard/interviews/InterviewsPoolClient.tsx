@@ -10,6 +10,7 @@ import {
   Video,
   Trash2,
   X,
+  HeartHandshake,
   CalendarClock,
   ClipboardCheck,
   ThumbsUp,
@@ -19,9 +20,10 @@ import { Input } from "@/components/ui/input";
 import { getAllInterviewsAction } from "@/actions/interviews-pool";
 import {
   submitInterviewFeedbackAction,
-  rateInterviewerAction,
   cancelInterviewAction,
+  sendInterviewFeedbackLinkAction
 } from "@/actions/interview";
+import { getTeamAction } from "@/actions/team";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -181,65 +183,60 @@ function ScorecardForm({
   );
 }
 
-/* ─────────────────── Rate the interviewer back ─────────────────── */
+/* ── Candidate-only interviewer rating ── */
 function InterviewerRatingWidget({
   interview,
-  onRated,
+  canEdit,
 }: {
   interview: GlobalInterview;
-  onRated: (id: string, rating: number) => void;
+  canEdit: boolean; // true only for OWNER / ADMIN / RECRUITER
 }) {
   const [busy, setBusy] = useState(false);
 
+  // ✅ Rating exists → it came from the candidate; read-only for everyone
   if (interview.interviewerRating !== null) {
     return (
       <div className="flex items-center justify-between rounded-xl border border-warning/20 bg-warning/5 px-3 py-2">
         <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
-          <ThumbsUp className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
-          You rated {interview.interviewer}
+          <HeartHandshake className="h-3.5 w-3.5 text-warning" /> Candidate rated {interview.interviewer}
         </span>
         <span className="flex items-center gap-0.5">
           {[1, 2, 3, 4, 5].map((s) => (
-            <Star
-              key={s}
-              className={cn(
-                "h-3 w-3",
-                s <= (interview.interviewerRating ?? 0) ? "fill-warning text-warning" : "text-border"
-              )}
-              aria-hidden="true"
-            />
+            <Star key={s} className={cn("h-3 w-3", s <= (interview.interviewerRating ?? 0) ? "fill-warning text-warning" : "text-border")} />
           ))}
         </span>
       </div>
     );
   }
 
-  async function rate(value: number) {
-    setBusy(true);
-    const res = await rateInterviewerAction(interview.id, value);
-    setBusy(false);
-    if (res?.error) {
-      toast.error(res.error);
-    } else {
-      toast.success(`You rated ${interview.interviewer} ${value}/5.`);
-      onRated(interview.id, value);
-    }
+  // Interviewer (or anyone non-editor) → just a quiet status, no controls
+  if (!canEdit) {
+    return (
+      <div className="rounded-xl border border-border/40 px-3 py-2 text-[11px] text-muted-foreground">
+        Awaiting candidate feedback…
+      </div>
+    );
   }
 
+  async function request() {
+    setBusy(true);
+    const res = await sendInterviewFeedbackLinkAction(interview.id);
+    setBusy(false);
+    if (res?.error) toast.error(res.error);
+    else toast.success(res.success ?? "Feedback link emailed to the candidate.");
+  }
+
+  // ✅ Recruiter → can only REQUEST the candidate to rate (never rate themselves)
   return (
-    <div className="flex items-center justify-between rounded-xl border border-border/40 px-3 py-2">
-      <span className="text-[11px] font-medium text-muted-foreground">
-        Rate interviewer {interview.interviewer}
-      </span>
-      <span className="flex items-center gap-0.5">
-        {busy && <Loader2 className="mr-1 h-3 w-3 animate-spin text-muted-foreground" aria-hidden="true" />}
-        {[1, 2, 3, 4, 5].map((s) => (
-          <button key={s} type="button" onClick={() => rate(s)} disabled={busy} aria-label={`Rate ${s} stars`}>
-            <Star className="h-4 w-4 text-border transition-colors hover:fill-warning hover:text-warning" aria-hidden="true" />
-          </button>
-        ))}
-      </span>
-    </div>
+    <button
+      type="button"
+      onClick={request}
+      disabled={busy}
+      className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border/40 p-2.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-60"
+    >
+      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <HeartHandshake className="h-3.5 w-3.5" />}
+      Request candidate feedback
+    </button>
   );
 }
 
@@ -463,10 +460,6 @@ export default function InterviewsPoolClient({
                     <Video className="h-4 w-4" aria-hidden="true" /> Join Google Meet
                   </a>
                 )}
-
-                {/* Scorecard + interviewer rating */}
-                <ScorecardForm interview={interview} onSaved={updateInterviewFeedback} />
-                <InterviewerRatingWidget interview={interview} onRated={updateInterviewerRating} />
               </div>
             </div>
           );

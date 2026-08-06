@@ -8,6 +8,7 @@ import { interviewScheduledEmail, interviewCancelledEmail } from "@/lib/email-te
 import { generateInterviewICS } from "@/lib/generate-ics";
 import { createMeetEvent, deleteMeetEvent } from "@/lib/google-calendar";
 import { canEditPipeline } from "@/lib/roles";
+import { randomBytes } from "crypto";
 
 export async function scheduleInterviewAction(data: {
   applicationId: string;
@@ -269,27 +270,20 @@ export async function getMyAssignedInterviewsAction() {
 export async function rateInterviewerAction(interviewId: string, rating: number) {
   const ctx = await requireOrg();
   if (!ctx) return { error: "Unauthorized" };
-  if (rating < 1 || rating > 5) return { error: "Rating must be between 1 and 5." };
+  if (!canEditPipeline(ctx.role)) return { error: "Only recruiters can rate interviewers." };
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) return { error: "Rating must be between 1 and 5." };
 
-  try {
-    const interview = await prisma.interview.findUnique({
-      where: { id: interviewId },
-      select: { id: true, interviewerId: true, application: { select: { job: { select: { organizationId: true } } } } },
-    });
-    if (!interview || interview.application.job.organizationId !== ctx.organizationId) {
-      return { error: "Interview not found or unauthorized." };
-    }
-    if (!interview.interviewerId) {
-      return { error: "This interviewer isn't a linked HireKarlo account, nothing to rate." };
-    }
+  const interview = await prisma.interview.findUnique({
+    where: { id: interviewId },
+    select: { interviewerId: true, application: { select: { job: { select: { organizationId: true } } } } },
+  });
+  if (!interview) return { error: "Interview not found." };
+  if (interview.application.job.organizationId !== ctx.organizationId) return { error: "Unauthorized" };
+  if (interview.interviewerId === ctx.userId) return { error: "You can't rate your own interview." };
 
-    await prisma.interview.update({ where: { id: interviewId }, data: { interviewerRating: rating } });
-    revalidatePath("/dashboard/interviews");
-    return { success: "Rating saved." };
-  } catch (error) {
-    console.error("[rateInterviewerAction] failed:", error);
-    return { error: "Failed to save rating." };
-  }
+  await prisma.interview.update({ where: { id: interviewId }, data: { interviewerRating: rating } });
+  revalidatePath("/dashboard/interviews");
+  return { success: "Interviewer rated." };
 }
 
 export async function cancelInterviewAction(interviewId: string) {
@@ -391,5 +385,83 @@ export async function cancelInterviewAction(interviewId: string) {
   } catch (error) {
     console.error("[cancelInterviewAction] failed:", error);
     return { error: "Failed to cancel interview." };
+  }
+}
+/* ✅ Recruiters send a private feedback link to the candidate */
+export async function sendInterviewFeedbackLinkAction(interviewId: string) {
+  const ctx = await requireOrg();
+  if (!ctx) return { error: "Unauthorized" };
+  if (!canEditPipeline(ctx.role)) return { error: "Only recruiters can request feedback." };
+
+  try {
+    const interview = await prisma.interview.findUnique({
+      where: { id: interviewId },
+      select: {
+        round: true,
+        interviewer: true,
+        application: {
+          select: {
+            candidate: { select: { email: true, fullName: true } },
+            job: { select: { organizationId: true, title: true } },
+          },
+        },
+      },
+    });
+    if (!interview) return { error: "Interview not found." };
+    if (interview.application.job.organizationId !== ctx.organizationId) return { error: "Unauthorized" };
+
+    const token = randomBytes(24).toString("hex");
+    const identifier = `interview-feedback:${interviewId}`;
+
+    await prisma.verificationToken.deleteMany({ where: { identifier } });
+    await prisma.verificationToken.create({
+      data: { identifier, token, expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
+    });
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const url = `${baseUrl}/rate-interview?token=${token}`;
+
+    await sendEmail(
+      interview.application.candidate.email,
+      `How was your ${interview.round} interview at ${interview.application.job.title}?`,
+      `<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
+        <h2>We'd love your feedback</h2>
+        <p>Hi ${interview.application.candidate.fullName}, thanks for interviewing with us.
+        Please rate your experience with <strong>${interview.interviewer}</strong> — it takes 5 seconds and is completely confidential.</p>
+        <p><a href="${url}" style="display:inline-block;background:#3b82f6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Rate my interview</a></p>
+        <p style="color:#a1a1aa;font-size:12px;">This link expires in 7 days and works only for you.</p>
+      </div>`
+    );
+
+    return { success: "Feedback link emailed to the candidate." };
+  } catch (error) {
+    console.error("[sendInterviewFeedbackLinkAction] failed:", error);
+    return { error: "Couldn't send the feedback link." };
+  }
+}
+
+/* ✅ ONLY the candidate (with the private token) can submit the rating */
+export async function submitInterviewExperienceRatingAction(token: string, rating: number) {
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    return { error: "Rating must be between 1 and 5 stars." };
+  }
+
+  try {
+    const rec = await prisma.verificationToken.findFirst({ where: { token } });
+    if (!rec || rec.expires < new Date() || !rec.identifier.startsWith("interview-feedback:")) {
+      return { error: "This feedback link is invalid or has expired." };
+    }
+
+    const interviewId = rec.identifier.replace("interview-feedback:", "");
+    await prisma.interview.update({
+      where: { id: interviewId },
+      data: { interviewerRating: rating },
+    });
+    await prisma.verificationToken.delete({ where: { token } }); // one-time link
+
+    return { success: "Thanks for your feedback!" };
+  } catch (error) {
+    console.error("[submitInterviewExperienceRatingAction] failed:", error);
+    return { error: "Couldn't save your rating. Please try again." };
   }
 }
