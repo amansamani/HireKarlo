@@ -1,10 +1,18 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { Search, User, Mail, Briefcase, FileDown, ExternalLink, Loader2, Download } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { useCallback, useState, useRef, useEffect } from "react";
+import {
+  Search,
+  Download,
+  Loader2,
+  User,
+  Mail,
+  Briefcase,
+  ChevronRight,
+} from "lucide-react";
 import { getAllCandidatesAction, exportCandidatesCsvAction } from "@/actions/candidates-pool";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
 type GlobalCandidate = {
@@ -12,30 +20,27 @@ type GlobalCandidate = {
   fullName: string;
   email: string;
   resumeUrl: string | null;
-  createdAt: Date | string;
   applications: Array<{
     stage: string;
     job: { title: string };
   }>;
 };
 
+// Keep your existing ResumeLink component
 function ResumeLink({ url }: { url: string | null }) {
-  if (!url) {
-    return (
-      <span className="rounded border border-border bg-background px-2 py-1 text-[10px] text-muted-foreground">
-        No Document
-      </span>
-    );
-  }
+  if (!url) return null;
   return (
     <a
       href={url}
-      download
       target="_blank"
-      rel="noreferrer"
-      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 py-1.5 font-medium text-foreground transition-colors hover:bg-muted/70"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/10 transition-colors"
     >
-      <FileDown className="h-3 w-3" aria-hidden="true" /> Resume <ExternalLink className="h-2.5 w-2.5 opacity-50" aria-hidden="true" />
+      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+      </svg>
+      Resume
     </a>
   );
 }
@@ -104,126 +109,192 @@ export default function CandidatesPoolClient({
     a.download = `candidates-${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, []); 
+  }, []);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 animate-in fade-in duration-500">
+      {/* Header */}
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Global Candidate Pool</h2>
-        <p className="text-sm text-muted-foreground">Search and manage all applicants across every active opening.</p>
+        <h2 className="text-2xl font-bold tracking-tight">Global Candidate Pool</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Search and manage all applicants across every active opening.
+        </p>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative max-w-sm flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+      {/* Search & Export Bar */}
+      <div className="flex flex-col gap-4 rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative max-w-md flex-1">
+          <Search
+            className="pointer-events-none absolute left-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
           <Input
             type="text"
             placeholder="Search by candidate name or email..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-9 pl-9"
+            className="h-11 pl-11 rounded-xl border-border/60 bg-background/50 transition-all focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
             aria-label="Search candidates"
           />
-          {isSearching && <Loader2 className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-muted-foreground" aria-hidden="true" />}
+          {isSearching && (
+            <Loader2
+              className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground"
+              aria-hidden="true"
+            />
+          )}
         </div>
-        <Button variant="outline" size="sm" className="gap-1.5 text-xs font-semibold" onClick={handleExport} disabled={isExporting}>
-          {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Download className="h-3.5 w-3.5" aria-hidden="true" />}
-          Export CSV
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2 rounded-xl text-xs font-semibold self-start sm:self-auto"
+          onClick={handleExport}
+          disabled={isExporting}
+        >
+          {isExporting ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              Exporting...
+            </>
+          ) : (
+            <>
+              <Download className="h-3.5 w-3.5" aria-hidden="true" />
+              Export CSV
+            </>
+          )}
         </Button>
       </div>
 
+      {/* Empty State */}
       {candidates.length === 0 ? (
-        <div className="animate-in fade-in-0 zoom-in-95 rounded-xl border border-border bg-card/40 py-12 text-center duration-300">
-          <p className="italic text-muted-foreground">
-            {searchQuery ? "No candidates match your search query." : "No candidates found."}
+        <div className="animate-in fade-in-0 zoom-in-95 rounded-2xl border border-dashed border-border/60 bg-card/30 backdrop-blur-sm py-16 text-center duration-300">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-border/40 bg-background/50 mb-4">
+            <User className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+          </div>
+          <p className="text-base font-semibold text-foreground">
+            {searchQuery ? "No candidates match your search" : "No candidates found"}
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {searchQuery
+              ? "Try adjusting your search query."
+              : "Candidates will appear here once they apply to your jobs."}
           </p>
         </div>
       ) : (
         <>
-          {/* Mobile: card list */}
+          {/* Mobile Cards */}
           <div className="space-y-3 sm:hidden">
             {candidates.map((candidate, i) => {
               const latestApp = candidate.applications[0];
               return (
                 <div
                   key={candidate.id}
-                  className="animate-in fade-in-0 slide-in-from-top-2 space-y-3 rounded-xl border border-border bg-card p-4 duration-300 fill-mode-backwards"
+                  className="animate-in fade-in-0 slide-in-from-top-2 duration-300 fill-mode-backwards rounded-2xl border border-border/40 bg-gradient-to-br from-card to-background p-4 shadow-sm"
                   style={{ animationDelay: `${i * 40}ms` }}
                 >
-                  <div>
-                    <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                      <User className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" /> {candidate.fullName}
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex items-center gap-2 text-base font-semibold text-foreground">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                          <User className="h-4 w-4 text-primary" aria-hidden="true" />
+                        </div>
+                        {candidate.fullName}
+                      </div>
+                      <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground ml-10">
+                        <Mail className="h-3 w-3" aria-hidden="true" />
+                        {candidate.email}
+                      </div>
                     </div>
-                    <div className="mt-0.5 flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
-                      <Mail className="h-3 w-3" aria-hidden="true" /> {candidate.email}
+                    <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                      <div className="flex items-center gap-2 text-xs font-medium text-foreground/80">
+                        <Briefcase className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                        {latestApp?.job?.title || "Unknown Opening"}
+                      </div>
+                      {latestApp ? (
+                        <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold text-primary">
+                          {latestApp.stage}
+                        </span>
+                      ) : (
+                        <span className="text-xs italic text-muted-foreground">
+                          No Active Track
+                        </span>
+                      )}
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-foreground/80">
-                      <Briefcase className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
-                      {latestApp?.job?.title || "Unknown Opening"}
+                    <div className="flex justify-end">
+                      <ResumeLink url={candidate.resumeUrl} />
                     </div>
-                    {latestApp ? (
-                      <span className="rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-[10px] text-foreground/80">
-                        {latestApp.stage}
-                      </span>
-                    ) : (
-                      <span className="text-xs italic text-muted-foreground">No Active Track</span>
-                    )}
-                  </div>
-                  <div className="flex justify-end text-xs">
-                    <ResumeLink url={candidate.resumeUrl} />
                   </div>
                 </div>
               );
             })}
           </div>
 
-          {/* Desktop: table */}
-          <div className="hidden overflow-hidden rounded-xl border border-border bg-card shadow-sm sm:block">
-            <table className="w-full border-collapse text-left text-xs">
+          {/* Desktop Table */}
+          <div className="hidden overflow-hidden rounded-2xl border border-border/40 bg-gradient-to-br from-card to-background shadow-sm sm:block">
+            <table className="w-full border-collapse text-left">
               <thead>
-                <tr className="border-b border-border bg-muted/50 font-medium text-muted-foreground select-none">
-                  <th className="p-4">Candidate Profile</th>
-                  <th className="p-4">Applied Position</th>
-                  <th className="p-4">Current Stage</th>
-                  <th className="p-4 text-right">Actions</th>
+                <tr className="border-b border-border/60 bg-muted/30">
+                  <th className="p-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Candidate Profile
+                  </th>
+                  <th className="p-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Applied Position
+                  </th>
+                  <th className="p-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Current Stage
+                  </th>
+                  <th className="p-4 text-xs font-bold uppercase tracking-wider text-muted-foreground text-right">
+                    Actions
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody className="divide-y divide-border/40">
                 {candidates.map((candidate, i) => {
                   const latestApp = candidate.applications[0];
                   return (
                     <tr
                       key={candidate.id}
-                      className="animate-in fade-in-0 slide-in-from-left-1 fill-mode-backwards transition-colors duration-300 hover:bg-muted/30"
-                      style={{ animationDelay: `${i * 40}ms` }}
+                      className="group transition-colors duration-200 hover:bg-muted/20"
+                      style={{ animationDelay: `${i * 30}ms` }}
                     >
-                      <td className="space-y-0.5 p-4">
-                        <div className="flex items-center gap-1.5 font-semibold text-foreground">
-                          <User className="h-3 w-3 text-muted-foreground" aria-hidden="true" /> {candidate.fullName}
-                        </div>
-                        <div className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
-                          <Mail className="h-3 w-3" aria-hidden="true" /> {candidate.email}
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
+                            <User className="h-5 w-5 text-primary" aria-hidden="true" />
+                          </div>
+                          <div>
+                            <div className="font-semibold text-foreground text-sm">
+                              {candidate.fullName}
+                            </div>
+                            <div className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground mt-0.5">
+                              <Mail className="h-3 w-3" aria-hidden="true" />
+                              {candidate.email}
+                            </div>
+                          </div>
                         </div>
                       </td>
-                      <td className="p-4 text-foreground/90">
-                        <div className="flex items-center gap-1.5 font-medium">
-                          <Briefcase className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+                      <td className="p-4">
+                        <div className="flex items-center gap-2 text-sm font-medium text-foreground/90">
+                          <Briefcase className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                           {latestApp?.job?.title || "Unknown Opening"}
                         </div>
                       </td>
                       <td className="p-4">
                         {latestApp ? (
-                          <span className="inline-flex items-center rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-[10px] text-foreground/80">
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
+                            <div className="h-1.5 w-1.5 rounded-full bg-primary" />
                             {latestApp.stage}
                           </span>
                         ) : (
-                          <span className="italic text-muted-foreground">No Active Track</span>
+                          <span className="text-xs italic text-muted-foreground">
+                            No Active Track
+                          </span>
                         )}
                       </td>
                       <td className="p-4 text-right">
-                        <ResumeLink url={candidate.resumeUrl} />
+                        <div className="flex items-center justify-end gap-2">
+                          <ResumeLink url={candidate.resumeUrl} />
+                          <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
                       </td>
                     </tr>
                   );
@@ -234,17 +305,24 @@ export default function CandidatesPoolClient({
         </>
       )}
 
-      {!searchQuery && hasMore && (
-        <div className="flex justify-center pt-2">
+      {/* Load More */}
+      {!searchQuery && hasMore && candidates.length > 0 && (
+        <div className="flex justify-center pt-4">
           <Button
             variant="outline"
             size="sm"
-            className="text-xs font-semibold"
+            className="gap-2 rounded-xl text-xs font-semibold"
             onClick={loadMore}
             disabled={isLoadingMore}
           >
-            {isLoadingMore && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
-            Load More
+            {isLoadingMore ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                Loading...
+              </>
+            ) : (
+              "Load More"
+            )}
           </Button>
         </div>
       )}
