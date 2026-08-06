@@ -17,6 +17,7 @@ import {
   Sparkles,
   Users,
   ListChecks,
+  Lock,
 } from "lucide-react";
 
 import {
@@ -34,6 +35,11 @@ const OFFER_STAGE = "OFFER";
 const REJECTED_STAGE = "REJECTED";
 const DEFAULT_ROUND = "Interview";
 
+// ✅ Mirrors lib/roles.ts canEditPipeline — interviewers are read-only
+function canEditPipeline(role: string | null | undefined): boolean {
+  return role === "OWNER" || role === "ADMIN" || role === "RECRUITER";
+}
+
 function prettyStage(s: string) {
   if (s === "APPLIED") return "Applied";
   if (s === "OFFER") return "Offer";
@@ -41,7 +47,6 @@ function prettyStage(s: string) {
   return s;
 }
 
-// ✅ Custom round = any stage that isn't one of the 3 backbone stages
 function isInterviewRound(stage: string) {
   const upper = stage.toUpperCase();
   return upper !== APPLIED_STAGE && upper !== OFFER_STAGE && upper !== REJECTED_STAGE;
@@ -142,7 +147,7 @@ function SchedulePanel({
     if (res?.error) toast.error(res.error);
     else {
       toast.success(`Interview booked — card moved to ${prettyStage(targetStage)}.`);
-      onDone(); // ← this now does the optimistic move
+      onDone();
     }
   }
 
@@ -187,13 +192,15 @@ function CandidateCard({
   jobId,
   stages,
   members,
+  editable,
   onMove,
 }: {
   app: PipelineApplication;
   jobId: string;
   stages: string[];
   members: TeamMember[];
-  onMove: (appId: string, newStage: string) => void; // ✅ optimistic move
+  editable: boolean; // ✅ false for interviewers → read-only card
+  onMove: (appId: string, newStage: string) => void;
 }) {
   const [isPending, startTransition] = useTransition();
   const [scheduling, setScheduling] = useState(false);
@@ -204,7 +211,7 @@ function CandidateCard({
       const res = await updateApplicationStatusAction(app.id, to, jobId);
       if (res?.error) toast.error(res.error);
       else {
-        onMove(app.id, to); // ✅ instant move
+        onMove(app.id, to);
         toast.success(`${app.candidate.fullName} moved to ${prettyStage(to)}.`);
       }
     });
@@ -242,6 +249,7 @@ function CandidateCard({
         <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{app.aiSummary}</p>
       )}
 
+      {/* ✅ Action row — resume always visible; Score/Schedule only for pipeline editors */}
       <div className="mt-3 flex items-center gap-1.5">
         {app.candidate.resumeUrl && (
           <a
@@ -253,7 +261,7 @@ function CandidateCard({
             <FileText className="h-3 w-3" /> Resume
           </a>
         )}
-        {app.matchScore === null && (
+        {editable && app.matchScore === null && (
           <button
             type="button"
             onClick={rescore}
@@ -264,8 +272,7 @@ function CandidateCard({
             Score
           </button>
         )}
-        {/* ✅ Schedule button — ONLY for interview rounds (not Offer/Rejected) */}
-        {next && isInterviewRound(next) && (
+        {editable && next && isInterviewRound(next) && (
           <button
             type="button"
             onClick={() => setScheduling((s) => !s)}
@@ -276,52 +283,54 @@ function CandidateCard({
         )}
       </div>
 
-      <div className="mt-2 flex items-center gap-1.5 border-t border-border/40 pt-2">
-        {prev && (
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={() => move(prev)}
-            className="flex h-6 flex-1 items-center justify-center rounded-md text-[10px] text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
-          >
-            <ArrowLeftSm className="h-3 w-3" /> {prettyStage(prev)}
-          </button>
-        )}
-        {/* ✅ Direct "move to next" ONLY for Offer — interview rounds REQUIRE scheduling */}
-        {next && !isInterviewRound(next) && (
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={() => move(next)}
-            className="flex h-6 flex-1 items-center justify-center gap-1 rounded-md bg-primary/10 text-[10px] font-semibold text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
-          >
-            {prettyStage(next)} <ArrowRight className="h-3 w-3" />
-          </button>
-        )}
-        {app.stage !== REJECTED_STAGE ? (
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={() => move(REJECTED_STAGE)}
-            title="Reject"
-            className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-          >
-            <UserX className="h-3 w-3" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={() => move(APPLIED_STAGE)}
-            className="flex h-6 flex-1 items-center justify-center gap-1 rounded-md text-[10px] text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-          >
-            <RotateCcw className="h-3 w-3" /> Restore
-          </button>
-        )}
-        {isPending && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
-      </div>
+      {/* ✅ Stage controls — hidden entirely for interviewers */}
+      {editable && (
+        <div className="mt-2 flex items-center gap-1.5 border-t border-border/40 pt-2">
+          {prev && (
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => move(prev)}
+              className="flex h-6 flex-1 items-center justify-center rounded-md text-[10px] text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
+            >
+              <ArrowLeftSm className="h-3 w-3" /> {prettyStage(prev)}
+            </button>
+          )}
+          {next && !isInterviewRound(next) && (
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => move(next)}
+              className="flex h-6 flex-1 items-center justify-center gap-1 rounded-md bg-primary/10 text-[10px] font-semibold text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
+            >
+              {prettyStage(next)} <ArrowRight className="h-3 w-3" />
+            </button>
+          )}
+          {app.stage !== REJECTED_STAGE ? (
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => move(REJECTED_STAGE)}
+              title="Reject"
+              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+            >
+              <UserX className="h-3 w-3" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => move(APPLIED_STAGE)}
+              className="flex h-6 flex-1 items-center justify-center gap-1 rounded-md text-[10px] text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+            >
+              <RotateCcw className="h-3 w-3" /> Restore
+            </button>
+          )}
+          {isPending && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+        </div>
+      )}
 
-      {scheduling && next && (
+      {editable && scheduling && next && (
         <SchedulePanel
           applicationId={app.id}
           jobId={jobId}
@@ -329,7 +338,7 @@ function CandidateCard({
           targetStage={next}
           onDone={() => {
             setScheduling(false);
-            onMove(app.id, next); // ✅ instant move on schedule success
+            onMove(app.id, next);
           }}
           onClose={() => setScheduling(false)}
         />
@@ -349,11 +358,12 @@ export default function JobPipelineClient({
   const router = useRouter();
   const [applications, setApplications] = useState<PipelineApplication[]>(initialApplications);
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [currentRole, setCurrentRole] = useState<string | null>(null);
 
   const stages = buildStages(job);
   const customCount = stages.length - 3;
+  const editable = canEditPipeline(currentRole);
 
-  // ✅ Sync if server re-renders with new data
   useEffect(() => {
     setApplications(initialApplications);
   }, [initialApplications]);
@@ -361,11 +371,13 @@ export default function JobPipelineClient({
   useEffect(() => {
     (async () => {
       const res = await getTeamAction();
-      if (res && !("error" in res && res.error)) setMembers(res.members ?? []);
+      if (res && !("error" in res && res.error)) {
+        setMembers(res.members ?? []);
+        setCurrentRole((res as { currentRole?: string }).currentRole ?? null);
+      }
     })();
   }, []);
 
-  // ✅ Optimistic move — updates local state instantly + refreshes server in background
   function handleMove(appId: string, newStage: string) {
     setApplications((curr) =>
       curr.map((a) => (a.id === appId ? { ...a, stage: newStage } : a))
@@ -410,6 +422,12 @@ export default function JobPipelineClient({
               <span className="flex items-center gap-1 rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] font-semibold text-primary">
                 <ListChecks className="h-3 w-3" /> {customCount} custom round{customCount === 1 ? "" : "s"}
               </span>
+              {/* ✅ Read-only badge for interviewers */}
+              {!editable && currentRole && (
+                <span className="flex items-center gap-1 rounded-full border border-border/40 bg-muted/40 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                  <Lock className="h-3 w-3" /> Read-only · {currentRole.toLowerCase()}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -462,6 +480,7 @@ export default function JobPipelineClient({
                         jobId={job.id}
                         stages={stages}
                         members={members}
+                        editable={editable}
                         onMove={handleMove}
                       />
                     ))

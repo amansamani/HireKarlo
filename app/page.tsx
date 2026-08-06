@@ -12,6 +12,7 @@ import {
   Users2,
   History,
   CheckCircle2,
+  SearchCheck,
 } from "lucide-react";
 import { ResumeScanCard } from "@/components/landing/resume-scan-card";
 import { Reveal } from "@/components/landing/reveal";
@@ -40,9 +41,9 @@ export default function Home() {
       ringClass: "border-chart-2/40",
       chipClass: "bg-chart-2/10",
       visual: (
-        <div className="w-full max-w-xs rounded-xl border border-border/60 bg-card/50 p-4 shadow-sm">
-          <p className="text-[11px] text-muted-foreground font-mono">hirekarlo.app/jobs/senior-frontend-engineer</p>
-          <div className="mt-3 rounded-lg border border-dashed border-border/60 p-4 text-center">
+        <div className="w-full max-w-xs rounded-xl border border-border bg-card p-4">
+          <p className="text-[11px] text-muted-foreground">hirekarlo.app/jobs/senior-frontend-engineer</p>
+          <div className="mt-3 rounded-lg border border-dashed border-border p-4 text-center">
             <p className="text-xs font-medium text-foreground">Drop your resume</p>
             <p className="mt-1 text-[10px] text-muted-foreground">PDF or DOCX · no login required</p>
           </div>
@@ -69,9 +70,9 @@ export default function Home() {
             { name: "A. Samani", score: 88 },
             { name: "R. Verma", score: 61 },
           ].map((c) => (
-            <div key={c.name} className="flex items-center justify-between rounded-lg border border-border/60 bg-card/50 px-3 py-2.5 shadow-sm">
-              <span className="text-xs text-foreground font-medium">{c.name}</span>
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+            <div key={c.name} className="flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2.5">
+              <span className="text-xs text-foreground">{c.name}</span>
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
                 {c.score}% match
               </span>
             </div>
@@ -89,7 +90,7 @@ export default function Home() {
       ringClass: "border-warning/40",
       chipClass: "bg-warning/10",
       visual: (
-        <div className="w-full max-w-xs rounded-xl border border-border/60 bg-card/50 p-4 shadow-sm">
+        <div className="w-full max-w-xs rounded-xl border border-border bg-card p-4">
           <p className="text-xs font-medium text-foreground">Technical Interview Loop</p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">Thu, Aug 6 · 4:00 PM with Priya S.</p>
           <div className="mt-3 flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-2">
@@ -109,13 +110,13 @@ export default function Home() {
       ringClass: "border-success/40",
       chipClass: "bg-success/10",
       visual: (
-        <div className="w-full max-w-xs rounded-xl border border-border/60 bg-card/50 p-4 shadow-sm">
+        <div className="w-full max-w-xs rounded-xl border border-border bg-card p-4">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-success">Offer</span>
             <span className="text-[10px] text-muted-foreground">1 candidate</span>
           </div>
           <div className="mt-2 h-12 rounded-lg border border-success/30 bg-success/10" />
-          <div className="mt-3 space-y-1.5 border-t border-border/40 pt-3">
+          <div className="mt-3 space-y-1.5 border-t border-border pt-3">
             <p className="text-[10px] text-muted-foreground">P. Iyer shifted from HR Round to Offer</p>
             <p className="text-[10px] text-muted-foreground">Candidate notified by email</p>
           </div>
@@ -126,7 +127,7 @@ export default function Home() {
 
   return (
     <div className="min-h-dvh bg-background text-foreground selection:bg-primary/30 selection:text-foreground">
-      {/* Nav */}
+      {/* ─── Nav with Track button ─── */}
       <header className="sticky top-0 z-50 border-b border-border/40 bg-background/60 backdrop-blur-xl backdrop-saturate-150">
         <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <Link href="/" className="flex items-center gap-2 group">
@@ -138,18 +139,29 @@ export default function Home() {
               className="h-7 w-auto object-contain transition-transform group-hover:scale-105"
               priority
             />
-            <span className="font-bold tracking-tight text-foreground">HireKarlo</span>
+            <span className="font-bold tracking-tight">HireKarlo</span>
           </Link>
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* ✅ NEW — Track button for candidates (always visible, even on mobile) */}
+            <Link
+              href="/track"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-border/60 bg-card/50 px-3 sm:px-4 py-2 text-sm font-medium text-foreground transition-all hover:bg-card/80 hover:border-border"
+            >
+              <SearchCheck className="h-4 w-4 text-primary" aria-hidden="true" />
+              <span className="hidden sm:inline">Track Application</span>
+              <span className="sm:hidden">Track</span>
+            </Link>
+
             <Link
               href="/login"
-              className="hidden sm:inline-flex rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="hidden md:inline-flex rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               Log in
             </Link>
             <Link
               href="/register"
-              className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/10 transition-all hover:shadow-primary/30 hover:scale-[1.02]"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 sm:px-5 py-2 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/10 transition-all hover:shadow-primary/30 hover:scale-[1.02]"
             >
               Get started free
             </Link>
@@ -158,7 +170,7 @@ export default function Home() {
       </header>
 
       <main>
-        {/* Hero Section */}
+        {/* ─── Hero ── */}
         <section className="relative isolate overflow-hidden min-h-[95dvh] flex items-center justify-center">
           <div className="absolute inset-0 -z-10">
             <Image
@@ -175,7 +187,7 @@ export default function Home() {
             className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[600px] bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,color-mix(in_oklch,var(--primary),transparent_80%),transparent)]"
             aria-hidden="true"
           />
-          
+
           <div className="mx-auto grid w-full max-w-7xl grid-cols-1 items-center gap-12 px-6 py-24 sm:py-32 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
             <div className="text-center lg:text-left">
               <Reveal delay={0}>
@@ -196,7 +208,8 @@ export default function Home() {
               </Reveal>
               <Reveal delay={200}>
                 <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground lg:mx-0 text-balance">
-                  Post a job, share one link, and every applicant is parsed and scored against the role before you ever open a PDF. Your pipeline arrives already sorted.
+                  Post a job, share one link, and every applicant is parsed and scored against the
+                  role before you ever open a PDF. Your pipeline arrives already sorted.
                 </p>
               </Reveal>
               <Reveal delay={300}>
@@ -209,10 +222,11 @@ export default function Home() {
                     <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
                   </Link>
                   <Link
-                    href="/login"
+                    href="/track"
                     className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-border/60 bg-card/50 backdrop-blur-sm px-8 text-sm font-medium text-foreground transition-all hover:bg-card/80 hover:border-border"
                   >
-                    Log in to dashboard
+                    <SearchCheck className="h-4 w-4 text-primary" aria-hidden="true" />
+                    Track your application
                   </Link>
                 </div>
                 <div className="mt-6 flex items-center justify-center gap-6 lg:justify-start text-xs text-muted-foreground">
@@ -237,7 +251,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Stats Strip */}
+        {/* ─── Stats strip ─── */}
         <section className="relative border-y border-border/60 bg-card/30 backdrop-blur-sm py-12">
           <div className="mx-auto max-w-6xl px-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 divide-x divide-border/60">
@@ -248,7 +262,9 @@ export default function Home() {
                 { value: "24/7", label: "AI Interviewer" },
               ].map((stat, i) => (
                 <Reveal key={stat.label} delay={i * 50} className="flex flex-col items-center text-center px-4">
-                  <p className="text-3xl md:text-4xl font-bold bg-gradient-to-b from-foreground to-foreground/70 bg-clip-text text-transparent">{stat.value}</p>
+                  <p className="text-3xl md:text-4xl font-bold bg-gradient-to-b from-foreground to-foreground/70 bg-clip-text text-transparent">
+                    {stat.value}
+                  </p>
                   <p className="mt-1 text-sm text-muted-foreground">{stat.label}</p>
                 </Reveal>
               ))}
@@ -256,7 +272,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Pipeline narrative */}
+        {/* ─── Pipeline narrative ─── */}
         <section className="mx-auto max-w-6xl px-6 py-32">
           <Reveal className="mx-auto mb-20 max-w-2xl text-center">
             <p className="text-xs font-bold uppercase tracking-widest text-primary mb-4">The Pipeline</p>
@@ -285,16 +301,14 @@ export default function Home() {
                     </div>
                   </div>
                   <p className="relative z-10 text-base leading-relaxed text-muted-foreground mb-8">{stage.copy}</p>
-                  <div className="relative z-10 mt-auto">
-                    {stage.visual}
-                  </div>
+                  <div className="relative z-10 mt-auto">{stage.visual}</div>
                 </div>
               </Reveal>
             ))}
           </div>
         </section>
 
-        {/* Interviewer accountability */}
+        {/* ─── Interviewer accountability ─── */}
         <section className="relative overflow-hidden border-y border-border/60 bg-gradient-to-b from-card/20 via-background to-card/20">
           <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_80%_50%_at_50%_100%,color-mix(in_oklch,var(--primary),transparent_92%),transparent)]" />
           <div className="mx-auto max-w-6xl px-6 py-32">
@@ -306,10 +320,15 @@ export default function Home() {
                     Interviewers get reviewed too.
                   </h2>
                   <p className="mt-6 text-lg leading-relaxed text-muted-foreground">
-                    Interviewers submit a structured result and rating on every round they run. Recruiters rate the interview right back — so a flaky interviewer shows up in the data just as clearly as a flaky candidate.
+                    Interviewers submit a structured result and rating on every round they run.
+                    Recruiters rate the interview right back — so a flaky interviewer shows up in
+                    the data just as clearly as a flaky candidate.
                   </p>
                   <div className="mt-8 flex items-center gap-4">
-                    <Link href="/register" className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:shadow-primary/40 hover:scale-[1.02]">
+                    <Link
+                      href="/register"
+                      className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:shadow-primary/40 hover:scale-[1.02]"
+                    >
                       Explore the dashboard <ArrowRight className="h-4 w-4" />
                     </Link>
                   </div>
@@ -344,13 +363,11 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Trust strip */}
+        {/* ─── Trust strip ─── */}
         <section className="mx-auto max-w-6xl px-6 py-32">
           <Reveal className="mx-auto mb-16 max-w-2xl text-center">
             <p className="text-xs font-bold uppercase tracking-widest text-primary mb-4">Enterprise Ready</p>
-            <h2 className="text-3xl md:text-5xl font-bold tracking-tight">
-              Built for compliance and scale.
-            </h2>
+            <h2 className="text-3xl md:text-5xl font-bold tracking-tight">Built for compliance and scale.</h2>
           </Reveal>
           <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
             {[
@@ -360,7 +377,7 @@ export default function Home() {
             ].map((item, i) => (
               <Reveal key={item.title} delay={i * 100}>
                 <div className="group relative h-full overflow-hidden rounded-2xl border border-border/60 bg-card/20 backdrop-blur-sm p-8 transition-all duration-300 hover:bg-card/40 hover:border-primary/30">
-                  <div className={`absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   <div className="relative z-10">
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 mb-5">
                       <item.icon className="h-6 w-6 text-primary" aria-hidden="true" />
@@ -374,7 +391,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Closing CTA */}
+        {/* ─── Closing CTA ─── */}
         <section className="relative overflow-hidden pb-32">
           <div className="mx-auto max-w-4xl px-6">
             <Reveal className="relative overflow-hidden rounded-3xl border border-border/60 bg-card/40 backdrop-blur-xl px-8 py-20 text-center shadow-2xl shadow-primary/10">
@@ -386,25 +403,36 @@ export default function Home() {
                 <p className="mx-auto mt-4 max-w-md text-lg text-muted-foreground">
                   Post it, share the link, and let the pipeline sort itself while you do the interviewing.
                 </p>
-                <Link
-                  href="/register"
-                  className="group relative mt-8 inline-flex h-14 items-center justify-center gap-2 overflow-hidden rounded-xl bg-primary px-8 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-all hover:shadow-primary/50 hover:scale-[1.02]"
-                >
-                  Create your account
-                  <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
-                </Link>
+                <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                  <Link
+                    href="/register"
+                    className="group relative inline-flex h-14 items-center justify-center gap-2 overflow-hidden rounded-xl bg-primary px-8 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition-all hover:shadow-primary/50 hover:scale-[1.02]"
+                  >
+                    Create your account
+                    <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+                  </Link>
+                  <Link
+                    href="/track"
+                    className="inline-flex h-14 items-center justify-center gap-2 rounded-xl border border-border/60 bg-card/50 px-8 text-base font-medium text-foreground transition-all hover:bg-card/80"
+                  >
+                    <SearchCheck className="h-5 w-5 text-primary" aria-hidden="true" />
+                    Already applied? Track it
+                  </Link>
+                </div>
               </div>
             </Reveal>
           </div>
         </section>
       </main>
 
+      {/* ─── Footer with Track link ─── */}
       <footer className="border-t border-border/60 px-6 py-10">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 sm:flex-row">
           <span className="text-sm text-muted-foreground">
             © {new Date().getFullYear()} HireKarlo. Built by Aman Samani.
           </span>
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
+            <Link href="/track" className="hover:text-foreground transition-colors">Track Application</Link>
             <Link href="/login" className="hover:text-foreground transition-colors">Log in</Link>
             <Link href="/register" className="hover:text-foreground transition-colors">Sign up</Link>
           </div>
