@@ -82,16 +82,15 @@ function SchedulePanel({
     }
     setBusy(true);
 
-    // ✅ FIXED — include the interviewer's display name too
     const selected = members.find((m) => m.id === interviewerId);
     const res = await scheduleInterviewAction({
       applicationId,
       jobId,
       round,
-      targetStage: round === "Technical" ? "TECHNICAL" : "HR",
       interviewer: selected?.user?.name || selected?.user?.email || "",
-      interviewerId,
+      interviewerId,                       // optional
       scheduledAt: new Date(when).toISOString(),
+      targetStage: round === "Technical" ? "TECHNICAL" : "HR",
     });
 
     setBusy(false);
