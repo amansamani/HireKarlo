@@ -301,7 +301,8 @@ export async function cancelInterviewAction(interviewId: string) {
         googleEventId: true,
         application: {
           select: {
-            job: { select: { organizationId: true, title: true } },
+            stage: true,
+            job: { select: { id: true, organizationId: true, title: true } },
             candidate: { select: { fullName: true, email: true } },
           },
         },
@@ -328,17 +329,43 @@ export async function cancelInterviewAction(interviewId: string) {
       }
     }
 
-    await prisma.$transaction([
-      prisma.interview.delete({ where: { id: interviewId } }),
-      prisma.activityLog.create({
+    // Stage names like "APPLIED"/"OFFER"/"HIRED"/"REJECTED" aren't tied to a
+    // specific interview, so never auto-revert those. Everything else is a
+    // round-name stage set by scheduleInterviewAction — if this was the last
+    // interview backing that stage, drop the app back to APPLIED so it stops
+    // being counted as "in interview" (overview stats, kanban board, etc.)
+    const TERMINAL_OR_NON_ROUND_STAGES = new Set(["APPLIED", "OFFER", "HIRED", "REJECTED"]);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.interview.delete({ where: { id: interviewId } });
+
+      await tx.activityLog.create({
         data: {
           userId: ctx.userId,
           applicationId: interview.applicationId,
           action: "Interview Cancelled",
           details: `${interview.round} with ${interview.application.candidate.fullName} was cancelled`,
         },
-      }),
-    ]);
+      });
+
+      if (!TERMINAL_OR_NON_ROUND_STAGES.has(interview.application.stage)) {
+        const remaining = await tx.interview.count({ where: { applicationId: interview.applicationId } });
+        if (remaining === 0) {
+          await tx.jobApplication.update({
+            where: { id: interview.applicationId },
+            data: { stage: "APPLIED" },
+          });
+          await tx.activityLog.create({
+            data: {
+              userId: ctx.userId,
+              applicationId: interview.applicationId,
+              action: `Moved to APPLIED`,
+              details: `${interview.application.candidate.fullName} reverted to Applied — last interview for this round was cancelled`,
+            },
+          });
+        }
+      }
+    });
 
     const { subject, html } = interviewCancelledEmail(
       interview.application.candidate.fullName,
@@ -351,6 +378,8 @@ export async function cancelInterviewAction(interviewId: string) {
     });
 
     revalidatePath("/dashboard/interviews");
+    revalidatePath(`/dashboard/jobs/${interview.application.job.id}`);
+    revalidatePath("/dashboard");
     return { success: "Interview cancelled." };
   } catch (error) {
     console.error("[cancelInterviewAction] failed:", error);
