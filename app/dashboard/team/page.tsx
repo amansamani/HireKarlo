@@ -3,18 +3,33 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
-  Mail, ShieldCheck, UserPlus, Loader2, Trash2, Clock, Crown, UserCheck, Mic, Users2, Star,
+  Mail,
+  ShieldCheck,
+  UserPlus,
+  Loader2,
+  Trash2,
+  Clock,
+  Crown,
+  UserCheck,
+  Mic,
+  Users2,
+  Star,
+  Lock,
 } from "lucide-react";
 
-// ✅ FIXED — real export names from team.ts
 import { getTeamAction, inviteTeamMemberAction, removeMemberAction } from "@/actions/team";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-// ✅ FIXED — don't narrow role to a union, API returns string
+// ✅ Mirrors lib/roles.ts canManageTeam — only OWNER + ADMIN can modify the team
+function canManage(role: string | null | undefined): boolean {
+  return role === "OWNER" || role === "ADMIN";
+}
+
 type Member = {
   id: string;
+  userId: string | null;
   role: string;
   user: { email: string; name: string | null; bio: string | null } | null;
   interviewerStats: { avg: number; count: number } | null;
@@ -31,6 +46,8 @@ const ROLE_META: Record<string, { icon: typeof Crown; tone: string }> = {
 export default function TeamPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
+  const [currentRole, setCurrentRole] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"RECRUITER" | "INTERVIEWER">("INTERVIEWER");
@@ -42,6 +59,8 @@ export default function TeamPage() {
       if (res && !("error" in res && res.error)) {
         setMembers(res.members ?? []);
         setInvites(res.invites ?? []);
+        setCurrentRole((res as { currentRole?: string }).currentRole ?? null);
+        setCurrentUserId((res as { currentUserId?: string }).currentUserId ?? null);
       }
       setLoading(false);
     })();
@@ -50,13 +69,13 @@ export default function TeamPage() {
   async function invite() {
     if (!email.trim()) return toast.error("Enter an email address.");
     setBusy("invite");
-    const res = await inviteTeamMemberAction({ email: email.trim(), role }); // ✅ FIXED name
+    const res = await inviteTeamMemberAction({ email: email.trim(), role });
     setBusy(null);
     if (res?.error) toast.error(res.error);
     else {
       toast.success(`Invite sent to ${email.trim()}.`);
       setInvites((c) => [
-        { id: crypto.randomUUID(), email: email.trim(), role, createdAt: new Date() }, // ✅ createdAt, not sentAt
+        { id: crypto.randomUUID(), email: email.trim(), role, createdAt: new Date() },
         ...c,
       ]);
       setEmail("");
@@ -82,63 +101,82 @@ export default function TeamPage() {
     );
   }
 
+  const isAdmin = canManage(currentRole);
+
   return (
     <div className="mx-auto max-w-5xl space-y-8 animate-in fade-in duration-500">
+      {/* Header */}
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Team</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Invite recruiters and interviewers — everyone sees only what their role allows.
+          {isAdmin
+            ? "Invite recruiters and interviewers — everyone sees only what their role allows."
+            : "View your teammates and their interview ratings."}
         </p>
       </div>
 
-      {/* Invite card */}
-      <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card to-card p-6 shadow-sm">
-        <div className="absolute top-0 right-0 w-48 h-48 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-        <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-end">
-          <div className="flex-1 space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Invite a teammate
-            </label>
-            <div className="relative">
-              <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="email"
-                placeholder="teammate@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-12 pl-11 rounded-xl border-border/60 bg-background/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
-              />
+      {/* ✅ Invite card — ONLY for OWNER / ADMIN */}
+      {isAdmin ? (
+        <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card to-card p-6 shadow-sm">
+          <div className="absolute top-0 right-0 w-48 h-48 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+          <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-end">
+            <div className="flex-1 space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Invite a teammate
+              </label>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="email"
+                  placeholder="teammate@company.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-12 pl-11 rounded-xl border-border/60 bg-background/60 focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
             </div>
+            <div className="flex gap-2">
+              {(["INTERVIEWER", "RECRUITER"] as const).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRole(r)}
+                  className={cn(
+                    "h-12 rounded-xl border px-4 text-xs font-semibold transition-all",
+                    role === r
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "border-border/40 bg-background text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {r.charAt(0) + r.slice(1).toLowerCase()}
+                </button>
+              ))}
+            </div>
+            <Button
+              onClick={invite}
+              disabled={busy === "invite"}
+              className="h-12 rounded-xl gap-2 font-semibold shadow-lg shadow-primary/20 hover:shadow-primary/30"
+            >
+              {busy === "invite" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <UserPlus className="h-4 w-4" />
+              )}
+              Send invite
+            </Button>
           </div>
-          <div className="flex gap-2">
-            {(["INTERVIEWER", "RECRUITER"] as const).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRole(r)}
-                className={cn(
-                  "h-12 rounded-xl border px-4 text-xs font-semibold transition-all",
-                  role === r
-                    ? "border-primary/40 bg-primary/10 text-primary"
-                    : "border-border/40 bg-background text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {r.charAt(0) + r.slice(1).toLowerCase()}
-              </button>
-            ))}
-          </div>
-          <Button
-            onClick={invite}
-            disabled={busy === "invite"}
-            className="h-12 rounded-xl gap-2 font-semibold shadow-lg shadow-primary/20 hover:shadow-primary/30"
-          >
-            {busy === "invite" ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-            Send invite
-          </Button>
         </div>
-      </div>
+      ) : (
+        <div className="flex items-center gap-3 rounded-2xl border border-border/40 bg-card/30 px-4 py-3">
+          <Lock className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <p className="text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">Read-only view:</span> only owners and
+            admins can invite or remove team members.
+          </p>
+        </div>
+      )}
 
-      {/* Members */}
+      {/* Members grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {members.map((m, i) => {
           const meta = ROLE_META[m.role] ?? ROLE_META.RECRUITER;
@@ -168,11 +206,16 @@ export default function TeamPage() {
                   <span className="text-[10px] font-semibold text-foreground">
                     {m.interviewerStats.avg.toFixed(1)} avg rating
                   </span>
-                  <span className="text-[10px] text-muted-foreground">· {m.interviewerStats.count} rounds</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    · {m.interviewerStats.count} rounds
+                  </span>
                 </div>
               )}
 
-              {m.role !== "OWNER" && (
+              {/* ✅ Delete only when: (a) current user is OWNER/ADMIN,
+                     (b) target isn't the OWNER,
+                     (c) target isn't the current user themselves */}
+              {isAdmin && m.role !== "OWNER" && m.userId !== currentUserId && (
                 <button
                   type="button"
                   onClick={() => remove(m.id)}
@@ -180,7 +223,11 @@ export default function TeamPage() {
                   className="absolute bottom-4 right-4 flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
                   aria-label={`Remove ${emailAddr}`}
                 >
-                  {busy === m.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  {busy === m.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-3.5 w-3.5" />
+                  )}
                 </button>
               )}
             </div>
@@ -188,14 +235,17 @@ export default function TeamPage() {
         })}
       </div>
 
-      {/* Pending invites */}
-      {invites.length > 0 && (
+      {/* Pending invites — only admins see the list */}
+      {isAdmin && invites.length > 0 && (
         <div className="space-y-3">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
             <Clock className="h-4 w-4" /> Pending invites
           </h3>
           {invites.map((inv) => (
-            <div key={inv.id} className="flex items-center justify-between rounded-xl border border-dashed border-border/60 bg-card/30 px-4 py-3">
+            <div
+              key={inv.id}
+              className="flex items-center justify-between rounded-xl border border-dashed border-border/60 bg-card/30 px-4 py-3"
+            >
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50">
                   <Mail className="h-4 w-4 text-muted-foreground" />
@@ -216,11 +266,13 @@ export default function TeamPage() {
         </div>
       )}
 
-      {members.length === 0 && invites.length === 0 && (
+      {members.length === 0 && (
         <div className="rounded-2xl border border-dashed border-border/60 bg-card/30 py-16 text-center">
           <Users2 className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
           <p className="text-sm font-medium">No team members yet</p>
-          <p className="mt-1 text-xs text-muted-foreground">Send your first invite above.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {isAdmin ? "Send your first invite above." : "Ask your team owner to invite you."}
+          </p>
         </div>
       )}
     </div>
