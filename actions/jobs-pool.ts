@@ -85,6 +85,7 @@ export async function deleteJobAction(jobId: string) {
       where: { id: jobId, organizationId: ctx.organizationId },
     });
     revalidatePath("/dashboard/jobs");
+    revalidatePath("/dashboard");
     return { success: "Job deleted." };
   } catch (error) {
     console.error("[deleteJobAction] failed — record doesn't exist or organizationId doesn't match:", error);

@@ -85,6 +85,7 @@ export async function updateApplicationStatusAction(applicationId: string, statu
     });
 
     revalidatePath(`/dashboard/jobs/${jobId}`);
+    revalidatePath("/dashboard");
     return { success: `Candidate moved to ${status}` };
   } catch (error) {
     console.error("[updateApplicationStatusAction] Update error:", error);

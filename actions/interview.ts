@@ -161,6 +161,7 @@ export async function scheduleInterviewAction(data: {
 
     revalidatePath(`/dashboard/jobs/${data.jobId}`);
     revalidatePath(`/dashboard/interviews`);
+    revalidatePath("/dashboard");
 
     return { success: "Interview scheduled successfully!" };
   } catch (error) {
