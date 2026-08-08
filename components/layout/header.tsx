@@ -386,7 +386,7 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
   const refreshTeam = useCallback(() => setTeamVersion((v) => v + 1), []);
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-border/40 bg-background/80 backdrop-blur-xl px-4 sm:px-6 lg:px-8">
+      <header className="relative z-50 flex h-16 shrink-0 items-center justify-between border-b border-border/40 bg-background/80 backdrop-blur-xl px-4 sm:px-6 lg:px-8">
       <div className="flex items-center gap-3">
         <button
           type="button"
