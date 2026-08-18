@@ -9,7 +9,6 @@ import {
   TrendingUp,
   ArrowRight,
   CalendarClock,
-  Lock,
 } from "lucide-react";
 import { getRecruiterAnalyticsAction } from "@/actions/analytics";
 import { getTeamAction } from "@/actions/team";

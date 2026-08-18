@@ -7,7 +7,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import {
   Menu, LogOut, Bell, Settings, Calendar, CalendarOff, FileText, Video,
-  UserPlus, Loader2, Users2, ExternalLink, Pencil, Check,
+  Loader2, Users2, ExternalLink, Pencil, Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
@@ -50,6 +50,11 @@ function timeUntil(d: string | Date) {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `in ${hrs}h`;
   return `in ${Math.floor(hrs / 24)}d`;
+}
+// Kept outside the component so the Date.now() read isn't an impure call
+// inside render (per react-hooks/purity).
+function isFutureDate(d: string | Date) {
+  return +new Date(d) > Date.now();
 }
 
 function useClickOutside(onOut: () => void) {
@@ -147,7 +152,7 @@ function NotificationBell() {
                     <p className="text-[10px] text-muted-foreground">{n.meta}</p>
                   </div>
                   <span className="shrink-0 text-[10px] font-medium text-muted-foreground">
-                    {n.type === "interview" && +new Date(n.at) > Date.now() ? timeUntil(n.at) : timeAgo(n.at)}
+                    {n.type === "interview" && isFutureDate(n.at) ? timeUntil(n.at) : timeAgo(n.at)}
                   </span>
                 </div>
               ))
@@ -280,12 +285,13 @@ function SettingsMenu({
                   </Button>
                 </div>
               ) : (
-                <a
-                  href="/api/auth/google-calendar/connect"
-                  className="flex items-center justify-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 p-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
+                <button
+                  type="button"
+                  onClick={() => { window.location.href = "/api/auth/google-calendar/connect"; }}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 p-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
                 >
                   <Calendar className="h-3.5 w-3.5" /> Connect Google Calendar
-                </a>
+                </button>
               )}
 
               <p className="text-[10px] text-muted-foreground">

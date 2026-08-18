@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Briefcase,
   Clock,
@@ -13,7 +13,6 @@ import {
   HeartHandshake,
   CalendarClock,
   ClipboardCheck,
-  ThumbsUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +42,11 @@ type GlobalInterview = {
     candidate: { fullName: string; email: string };
   };
 };
+
+// ✅ Mirrors lib/roles.ts canEditPipeline — interviewers are read-only
+function canManageInterviews(role: string | null | undefined): boolean {
+  return role === "OWNER" || role === "ADMIN" || role === "RECRUITER";
+}
 
 function prettyResult(result: string | null) {
   if (result === "PASSED") return "Passed";
@@ -312,6 +316,16 @@ export default function InterviewsPoolClient({
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [currentRole, setCurrentRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const res = await getTeamAction();
+      if (res && !res.error) {
+        setCurrentRole((res as { currentRole?: string }).currentRole ?? null);
+      }
+    })();
+  }, []);
 
   const loadMore = useCallback(async () => {
     setIsLoadingMore(true);
@@ -335,12 +349,6 @@ export default function InterviewsPoolClient({
     },
     []
   );
-
-  const updateInterviewerRating = useCallback((id: string, interviewerRating: number) => {
-    setInterviews((current) =>
-      current.map((i) => (i.id === id ? { ...i, interviewerRating } : i))
-    );
-  }, []);
 
   const removeCancelledInterview = useCallback((id: string) => {
     setInterviews((current) => current.filter((i) => i.id !== id));
@@ -460,6 +468,13 @@ export default function InterviewsPoolClient({
                     <Video className="h-4 w-4" aria-hidden="true" /> Join Google Meet
                   </a>
                 )}
+
+                {/* Interviewer scorecard + candidate-facing interviewer rating */}
+                <ScorecardForm interview={interview} onSaved={updateInterviewFeedback} />
+                <InterviewerRatingWidget
+                  interview={interview}
+                  canEdit={canManageInterviews(currentRole)}
+                />
               </div>
             </div>
           );

@@ -357,6 +357,10 @@ export default function JobPipelineClient({
 }) {
   const router = useRouter();
   const [applications, setApplications] = useState<PipelineApplication[]>(initialApplications);
+  // Tracks the prop we last synced from, so a fresh `initialApplications`
+  // (e.g. after router.refresh()) can reset local state during render
+  // instead of via a setState-in-effect (which causes an extra cascading render).
+  const [syncedInitialApplications, setSyncedInitialApplications] = useState(initialApplications);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [currentRole, setCurrentRole] = useState<string | null>(null);
 
@@ -364,9 +368,10 @@ export default function JobPipelineClient({
   const customCount = stages.length - 3;
   const editable = canEditPipeline(currentRole);
 
-  useEffect(() => {
+  if (initialApplications !== syncedInitialApplications) {
+    setSyncedInitialApplications(initialApplications);
     setApplications(initialApplications);
-  }, [initialApplications]);
+  }
 
   useEffect(() => {
     (async () => {
