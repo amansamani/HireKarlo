@@ -46,7 +46,7 @@ export async function registerAction(values: z.infer<typeof RegisterSchema>) {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    const user = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       const createdUser = await tx.user.create({
         data: {
           name,

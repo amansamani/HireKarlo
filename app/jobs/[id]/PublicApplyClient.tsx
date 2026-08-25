@@ -64,19 +64,28 @@ async function verifyAndSubmit(e: React.FormEvent) {
   if (!file) return toast.error("Please attach your resume.");
   setBusy(true);
 
-  let resumeUploadId: string | undefined;
+  let resumeUploadId = "";
   try {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("jobId", job.id);
     const up = await fetch("/api/upload", { method: "POST", body: fd });
-    const upJson = await up.json();
-    if (!up.ok || !upJson?.uploadId) {
-      toast.error(upJson?.error ?? "Resume upload failed.");
+    const upJson: unknown = await up.json();
+    const uploadId =
+      typeof upJson === "object" && upJson !== null && "uploadId" in upJson
+        ? (upJson as { uploadId?: unknown }).uploadId
+        : undefined;
+    const errorMessage =
+      typeof upJson === "object" && upJson !== null && "error" in upJson
+        ? (upJson as { error?: unknown }).error
+        : undefined;
+
+    if (!up.ok || typeof uploadId !== "string" || !uploadId) {
+      toast.error(typeof errorMessage === "string" ? errorMessage : "Resume upload failed.");
       setBusy(false);
       return;
     }
-    resumeUploadId = upJson.uploadId;
+    resumeUploadId = uploadId;
   } catch {
     toast.error("Resume upload failed. Please try again.");
     setBusy(false);
