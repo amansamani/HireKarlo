@@ -50,7 +50,7 @@ export default function TeamPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"RECRUITER" | "INTERVIEWER">("INTERVIEWER");
+  const [role, setRole] = useState<"ADMIN" | "RECRUITER" | "INTERVIEWER">("RECRUITER");
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -110,7 +110,7 @@ export default function TeamPage() {
         <h2 className="text-2xl font-bold tracking-tight">Team</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {isAdmin
-            ? "Invite recruiters and interviewers — everyone sees only what their role allows."
+            ? "Invite admins, recruiters, and interviewers — everyone sees only what their role allows."
             : "View your teammates and their interview ratings."}
         </p>
       </div>
@@ -136,7 +136,7 @@ export default function TeamPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              {(["INTERVIEWER", "RECRUITER"] as const).map((r) => (
+              {(["ADMIN", "INTERVIEWER", "RECRUITER"] as const).map((r) => (
                 <button
                   key={r}
                   type="button"
