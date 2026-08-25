@@ -9,24 +9,32 @@ import { generateInterviewICS } from "@/lib/generate-ics";
 import { createMeetEvent, deleteMeetEvent } from "@/lib/google-calendar";
 import { canEditPipeline } from "@/lib/roles";
 import { randomBytes } from "crypto";
+import { decryptSecret } from "@/lib/encrypted-secret";
+import { z } from "zod";
 
-export async function scheduleInterviewAction(data: {
-  applicationId: string;
-  round: string;
-  interviewer: string;
-  interviewerId?: string;
-  scheduledAt: string;
-  jobId: string;
-  targetStage: string;
-  durationMinutes?: number;
-  timezone?: string;
-}) {
+const ScheduleInterviewSchema = z.object({
+  applicationId: z.string().min(1),
+  round: z.string().trim().min(1).max(120),
+  interviewer: z.string().trim().min(1).max(120),
+  interviewerId: z.string().min(1).optional(),
+  scheduledAt: z.string().datetime({ offset: true }),
+  jobId: z.string().min(1),
+  targetStage: z.string().trim().min(1).max(120).refine((value) => !["APPLIED", "OFFER", "REJECTED", "HIRED"].includes(value.toUpperCase()), "Invalid interview stage."),
+  durationMinutes: z.number().int().min(15).max(480).optional(),
+  timezone: z.string().trim().min(1).max(100).optional(),
+});
+
+export async function scheduleInterviewAction(data: z.infer<typeof ScheduleInterviewSchema>) {
+  const parsed = ScheduleInterviewSchema.safeParse(data);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid interview details." };
+  data = parsed.data;
   const ctx = await requireOrg();
   if (!ctx) return { error: "Unauthorized" };
   if (!canEditPipeline(ctx.role)) return { error: "Interviewers can't schedule interviews." };
 
   const duration = data.durationMinutes ?? 60;
   const start = new Date(data.scheduledAt);
+  if (!Number.isFinite(start.getTime()) || start.getTime() <= Date.now()) return { error: "Interview time must be a valid future date." };
   const end = new Date(start.getTime() + duration * 60_000);
 
   try {
@@ -91,13 +99,13 @@ export async function scheduleInterviewAction(data: {
         if (interviewerEmail) attendees.push(interviewerEmail);
         
         const calendarEvent = await createMeetEvent({
-          refreshToken: org.googleRefreshToken,
+          refreshToken: decryptSecret(org.googleRefreshToken),
           summary: `${data.round} — ${currentApp.job.title}`,
           description: `Interview with ${currentApp.candidate.fullName} for ${currentApp.job.title}. Interviewer: ${data.interviewer}.`,
           start,
           durationMinutes: duration,
           attendeeEmails: attendees,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, // ✅ pass timezone
+          timezone: data.timezone || "UTC",
         });
         
         meetingLink = calendarEvent.meetingLink;
@@ -323,7 +331,7 @@ export async function cancelInterviewAction(interviewId: string) {
       });
       if (org?.googleRefreshToken) {
         try {
-          await deleteMeetEvent({ refreshToken: org.googleRefreshToken, eventId: interview.googleEventId });
+          await deleteMeetEvent({ refreshToken: decryptSecret(org.googleRefreshToken), eventId: interview.googleEventId });
         } catch (calendarError) {
           console.error("[cancelInterviewAction] Calendar event deletion failed, continuing:", calendarError);
         }

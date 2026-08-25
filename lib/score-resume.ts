@@ -1,5 +1,15 @@
 "use server";
 
+import { z } from "zod";
+
+const ResumeScoreSchema = z.object({
+  skills: z.array(z.string().trim().min(1)).max(100),
+  yearsExperience: z.number().min(0).max(100),
+  matchScore: z.number().min(0).max(100),
+  suggestedStage: z.enum(["APPLIED", "SCREENING", "TECHNICAL"]),
+  summary: z.string().trim().max(1000),
+});
+
 type ResumeScore = {
   skills: string[];
   yearsExperience: number;
@@ -73,7 +83,7 @@ Return ONLY a JSON object, no markdown, no preamble, matching exactly this shape
     const data = await response.json();
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     const clean = text.replace(/```json|```/g, "").trim();
-    return JSON.parse(clean) as ResumeScore;
+    return ResumeScoreSchema.parse(JSON.parse(clean));
   } catch (err) {
     
     console.error("Resume scoring failed:", err);

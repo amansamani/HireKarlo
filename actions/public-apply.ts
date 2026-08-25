@@ -101,7 +101,7 @@ const ApplicationSchema = z.object({
   jobId: z.string().min(1, "Job ID is required"),
   candidateName: z.string().min(2, "Name must be at least 2 characters"),
   candidateEmail: z.string().email("Invalid email address"),
-  resumeUrl: z.string().optional(),
+  resumeUploadId: z.string().uuid("Invalid resume upload."),
   otp: z.string().length(6, "Missing email verification code."),
 });
 
@@ -112,7 +112,7 @@ export async function submitApplicationAction(values: z.infer<typeof Application
     return { error: "Please fill out all fields correctly." };
   }
 
-  const { jobId, candidateName, candidateEmail, resumeUrl, otp } = validatedFields.data;
+  const { jobId, candidateName, candidateEmail, resumeUploadId, otp } = validatedFields.data;
 
   try {
     const identifier = otpIdentifier(candidateEmail);
@@ -133,6 +133,19 @@ export async function submitApplicationAction(values: z.infer<typeof Application
       return { error: "This job posting is no longer active." };
     }
 
+    const upload = await prisma.resumeUpload.findFirst({
+      where: {
+        id: resumeUploadId,
+        jobId,
+        consumedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!upload) {
+      return { error: "Your resume upload is missing or has expired. Please upload it again." };
+    }
+
     const existingApplication = await prisma.jobApplication.findFirst({
       where: {
         jobId,
@@ -143,6 +156,20 @@ export async function submitApplicationAction(values: z.infer<typeof Application
     if (existingApplication) {
       return { error: "You have already submitted an application for this job opening." };
     }
+
+    const claimedUpload = await prisma.resumeUpload.updateMany({
+      where: {
+        id: upload.id,
+        consumedAt: null,
+      },
+      data: { consumedAt: new Date() },
+    });
+
+    if (claimedUpload.count !== 1) {
+      return { error: "This resume upload has already been used. Please upload it again." };
+    }
+
+    const resumeUrl = upload.url;
 
     let matchScore: number | null = null;
     let aiSummary: string | null = null;

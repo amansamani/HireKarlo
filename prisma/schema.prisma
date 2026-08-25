@@ -117,6 +117,19 @@ model TeamInvite {
   @@unique([organizationId, email])
 }
 
+model ResumeUpload {
+  id         String   @id @default(uuid())
+  jobId      String
+  job        Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  url        String
+  publicId   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([jobId, expiresAt])
+}
+
 model Candidate {
   id             String           @id @default(cuid())
   fullName       String
@@ -166,6 +179,7 @@ model Job {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   applications JobApplication[]
+  resumeUploads ResumeUpload[]
 
   @@index([userId])
   @@index([organizationId])

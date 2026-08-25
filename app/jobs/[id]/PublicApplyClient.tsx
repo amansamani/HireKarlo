@@ -58,33 +58,36 @@ export default function PublicApplyClient({ job }: { job: PublicJob }) {
     }
   }
 
-// REAL contract: POST /api/upload with FormData("file" + "jobId") → { url }
 async function verifyAndSubmit(e: React.FormEvent) {
   e.preventDefault();
   if (otp.trim().length !== 6) return toast.error("Enter the 6-digit code from your email.");
+  if (!file) return toast.error("Please attach your resume.");
   setBusy(true);
 
-  // 1) Upload resume → Cloudinary URL string
-  let resumeUrl: string | undefined;
-  if (file) {
-    try {
-      const fd = new FormData();
-      fd.append("file", file);        // key the route reads
-      fd.append("jobId", job.id);     // REQUIRED by the route
-      const up = await fetch("/api/upload", { method: "POST", body: fd });
-      const upJson = await up.json();
-      if (up.ok && upJson?.url) resumeUrl = upJson.url;   // ✅ response key is `url`
-      else toast.error(upJson?.error ?? "Resume upload failed — applying without it.");
-    } catch {
-      toast.error("Resume upload failed — applying without it.");
+  let resumeUploadId: string | undefined;
+  try {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("jobId", job.id);
+    const up = await fetch("/api/upload", { method: "POST", body: fd });
+    const upJson = await up.json();
+    if (!up.ok || !upJson?.uploadId) {
+      toast.error(upJson?.error ?? "Resume upload failed.");
+      setBusy(false);
+      return;
     }
+    resumeUploadId = upJson.uploadId;
+  } catch {
+    toast.error("Resume upload failed. Please try again.");
+    setBusy(false);
+    return;
   }
 
   const res = await submitApplicationAction({
     jobId: job.id,
     candidateName: fullName.trim(),
     candidateEmail: email.trim(),
-    resumeUrl,
+    resumeUploadId,
     otp: otp.trim(),
   });
 

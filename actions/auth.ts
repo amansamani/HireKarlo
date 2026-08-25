@@ -46,12 +46,31 @@ export async function registerAction(values: z.infer<typeof RegisterSchema>) {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-      },
+    const user = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          name,
+          email,
+          password: hashedPassword,
+        },
+      });
+
+      const organization = await tx.organization.create({
+        data: {
+          name: `${name.trim()}'s Organization`,
+          ownerId: createdUser.id,
+        },
+      });
+
+      await tx.membership.create({
+        data: {
+          organizationId: organization.id,
+          userId: createdUser.id,
+          role: "OWNER",
+        },
+      });
+
+      return createdUser;
     });
 
     await prisma.verificationToken.deleteMany({ where: { identifier: email } });

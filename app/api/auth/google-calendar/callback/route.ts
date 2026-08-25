@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/require-auth";
 import { canManageTeam } from "@/lib/roles";
 import { exchangeCodeForTokens, getGoogleUserEmail } from "@/lib/google-calendar";
+import { encryptSecret } from "@/lib/encrypted-secret";
 
 export async function GET(req: NextRequest) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest) {
 
     await prisma.organization.update({
       where: { id: ctx.organizationId },
-      data: { googleRefreshToken: tokens.refresh_token, googleCalendarEmail: email },
+      data: { googleRefreshToken: encryptSecret(tokens.refresh_token), googleCalendarEmail: email },
     });
 
     teamUrl.searchParams.set("googleConnected", "1");

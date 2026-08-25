@@ -9,7 +9,7 @@ import { sendEmail } from "@/lib/send-email";
 import { z } from "zod";
 
 const InviteSchema = z.object({
-  email: z.string().trim().email(),
+  email: z.string().trim().email().transform((value) => value.toLowerCase()),
   role: z.enum(["ADMIN", "RECRUITER", "INTERVIEWER"]),
 });
 
@@ -155,6 +155,11 @@ export async function acceptInviteAction(token: string) {
     const invite = await prisma.teamInvite.findUnique({ where: { token } });
     if (!invite || invite.expires < new Date()) {
       return { error: "This invite is invalid or has expired." };
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    if (!user?.email || user.email.trim().toLowerCase() !== invite.email.trim().toLowerCase()) {
+      return { error: "This invite was sent to a different email address. Log in with the invited account." };
     }
 
     const existingMembership = await prisma.membership.findUnique({
