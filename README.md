@@ -23,7 +23,7 @@ Next.js (App Router) · TypeScript (strict) · PostgreSQL (Prisma) · NextAuth �
 \`\`\`bash
 git clone https://github.com/amansamani/HireKarlo.git
 cd HireKarlo
-cp .env.example .env   # then fill in values, see table below
+cp .env.example .env   # then fill in production/local values
 npm install
 npx prisma migrate dev
 npm run dev             # http://localhost:3000
@@ -38,6 +38,14 @@ npm run dev             # http://localhost:3000
 | `GEMINI_API_KEY` | Google Gemini API key (free tier) — from [Google AI Studio](https://aistudio.google.com/apikey) |
 | `EMAIL_USER` | Gmail address used to send candidate notification emails |
 | `EMAIL_PASS` | Gmail App Password (not your normal password) — generate at [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) |
+| `NEXT_PUBLIC_APP_URL` | Public HTTPS URL of the deployed HireKarlo app |
+| `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name for private resume storage |
+| `CLOUDINARY_API_KEY` | Cloudinary API key |
+| `CLOUDINARY_API_SECRET` | Cloudinary API secret |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID for Calendar integration |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+| `GOOGLE_TOKEN_ENCRYPTION_KEY` | Secret used to encrypt stored Google refresh tokens |
+| `CRON_SECRET` | Secret used to authenticate Vercel Cron requests |
 
 ## Demo Credentials
 
@@ -49,7 +57,17 @@ Recruiters authenticate via NextAuth (credentials + bcrypt), and every server ac
 
 ## Testing
 
-Manual end-to-end testing was performed across the full recruiter and candidate flows (auth, job creation, public application, resume scoring, pipeline stage changes, email delivery) on the live deployment. Automated tests are on the roadmap — see below.
+Run the automated checks before each production release:
+
+```bash
+npm ci
+npm run lint
+npm test
+npx tsc --noEmit
+npm run build
+```
+
+For Vercel, the production build also runs Prisma migrations through `vercel-build`. Keep the production database on a managed PostgreSQL service and configure every variable in `.env.example` in the Vercel project settings.
 
 ## Roadmap
 

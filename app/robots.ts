@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
 
+const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
@@ -7,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/api/", "/dashboard/"],
     },
-    sitemap: "https://HireKarlo.amansamani.me/sitemap.xml",
+    sitemap: `${base}/sitemap.xml`,
   };
 }

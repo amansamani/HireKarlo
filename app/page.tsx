@@ -433,6 +433,8 @@ export default function Home() {
           </span>
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
             <Link href="/track" className="hover:text-foreground transition-colors">Track Application</Link>
+            <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
+            <Link href="/cookies" className="hover:text-foreground transition-colors">Cookies</Link>
             <Link href="/login" className="hover:text-foreground transition-colors">Log in</Link>
             <Link href="/register" className="hover:text-foreground transition-colors">Sign up</Link>
           </div>

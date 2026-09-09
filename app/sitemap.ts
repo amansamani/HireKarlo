@@ -1,25 +1,13 @@
 import type { MetadataRoute } from "next";
 
+const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = "https://HireKarlo.amansamani.me";
   return [
-    {
-      url: base,
-      lastModified: new Date(),
-      changeFrequency: "monthly",
-      priority: 1,
-    },
-    {
-      url: `${base}/login`,
-      lastModified: new Date(),
-      changeFrequency: "yearly",
-      priority: 0.5,
-    },
-    {
-      url: `${base}/register`,
-      lastModified: new Date(),
-      changeFrequency: "yearly",
-      priority: 0.5,
-    },
+    { url: base, changeFrequency: "monthly", priority: 1 },
+    { url: `${base}/privacy`, changeFrequency: "yearly", priority: 0.4 },
+    { url: `${base}/cookies`, changeFrequency: "yearly", priority: 0.4 },
+    { url: `${base}/login`, changeFrequency: "yearly", priority: 0.2 },
+    { url: `${base}/register`, changeFrequency: "yearly", priority: 0.2 },
   ];
 }
