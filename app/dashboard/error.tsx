@@ -1,4 +1,5 @@
 "use client";
+import { logError } from "@/lib/logger";
 
 import { useEffect } from "react";
 import { AlertTriangle, RotateCcw } from "lucide-react";
@@ -13,7 +14,7 @@ export default function DashboardError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[dashboard error]", error);
+    logError("ui.render_failed", error);
   }, [error]);
 
   return (
@@ -25,7 +26,7 @@ export default function DashboardError({
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-4 text-center">
           <p className="text-sm text-muted-foreground">
-            This part of the dashboard hit an unexpected error. Your data is safe — try again.
+            This part of the dashboard hit an unexpected error. Try again or contact support if it continues.
           </p>
           <Button onClick={() => reset()} className="gap-2">
             <RotateCcw className="h-4 w-4" aria-hidden="true" />

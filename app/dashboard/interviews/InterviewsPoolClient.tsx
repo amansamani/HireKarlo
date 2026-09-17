@@ -32,6 +32,7 @@ type GlobalInterview = {
   interviewer: string;
   interviewerId: string | null;
   interviewerRating: number | null;
+  candidateExperienceRating: number | null;
   meetingLink: string | null;
   scheduledAt: Date | string;
   result: string | null;
@@ -187,7 +188,7 @@ function ScorecardForm({
   );
 }
 
-/* ── Candidate-only interviewer rating ── */
+/* Candidate experience uses its own field, never the recruiter rating. */
 function InterviewerRatingWidget({
   interview,
   canEdit,
@@ -197,16 +198,16 @@ function InterviewerRatingWidget({
 }) {
   const [busy, setBusy] = useState(false);
 
-  // ✅ Rating exists → it came from the candidate; read-only for everyone
-  if (interview.interviewerRating !== null) {
+  // The single-use experience link records this value.
+  if (interview.candidateExperienceRating !== null) {
     return (
       <div className="flex items-center justify-between rounded-xl border border-warning/20 bg-warning/5 px-3 py-2">
         <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
           <HeartHandshake className="h-3.5 w-3.5 text-warning" /> Candidate rated {interview.interviewer}
         </span>
-        <span className="flex items-center gap-0.5">
+        <span aria-label={`Candidate experience: ${interview.candidateExperienceRating} out of 5`} className="flex items-center gap-0.5">
           {[1, 2, 3, 4, 5].map((s) => (
-            <Star key={s} className={cn("h-3 w-3", s <= (interview.interviewerRating ?? 0) ? "fill-warning text-warning" : "text-border")} />
+            <Star key={s} className={cn("h-3 w-3", s <= (interview.candidateExperienceRating ?? 0) ? "fill-warning text-warning" : "text-border")} />
           ))}
         </span>
       </div>
@@ -276,7 +277,7 @@ function CancelInterviewButton({
     if (res?.error) {
       toast.error(res.error);
     } else {
-      toast.success("Interview cancelled — candidate notified.");
+      toast.success(res.success ?? "Interview cancelled; notification queued.");
       onCancelled(interviewId);
     }
   }
@@ -424,10 +425,10 @@ export default function InterviewsPoolClient({
                       </div>
                       <div className="font-mono text-[11px] text-muted-foreground">{dateStr}</div>
                     </div>
-                    <CancelInterviewButton
+                    {canManageInterviews(currentRole) && <CancelInterviewButton
                       interviewId={interview.id}
                       onCancelled={removeCancelledInterview}
-                    />
+                    />}
                   </div>
                 </div>
 
@@ -471,10 +472,10 @@ export default function InterviewsPoolClient({
 
                 {/* Interviewer scorecard + candidate-facing interviewer rating */}
                 <ScorecardForm interview={interview} onSaved={updateInterviewFeedback} />
-                <InterviewerRatingWidget
+                {canManageInterviews(currentRole) && <InterviewerRatingWidget
                   interview={interview}
-                  canEdit={canManageInterviews(currentRole)}
-                />
+                  canEdit={true}
+                />}
               </div>
             </div>
           );

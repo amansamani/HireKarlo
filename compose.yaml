@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: hirekarlo_audit
+      POSTGRES_PASSWORD: local_audit_only
+      POSTGRES_DB: hirekarlo_audit
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - audit-postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hirekarlo_audit -d hirekarlo_audit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  audit-postgres:

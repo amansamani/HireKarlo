@@ -1,3 +1,5 @@
+> Historical foundation-pass document. Some findings were fixed in the 17 September local CTO pass. Use [Final CTO review](FINAL-CTO-REVIEW.md), [current checklist](MASTER-CHECKLIST.md) and [deployment guide](deployment.md) for current implementation and pending release gates. Older test counts are not final-pass results.
+
 # HireKarlo production audit
 
 Reviewed 16 September 2026 for Aman Samani. This is a local engineering review and upgrade of the supplied ZIP, not a deployment, penetration test, or compliance certification. The original ZIP is unchanged. Attached documentation was treated as project evidence; its contribution restrictions did not override your request. MIT author attribution remains.

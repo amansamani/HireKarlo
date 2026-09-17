@@ -1,3 +1,4 @@
+import { logError } from "@/lib/logger";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
     }, { timeout: 25_000 });
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error("[billing-webhook] processing failed", error instanceof Error ? error.message : "Unknown error");
+    logError("app.api.billing.webhook.route", error);
     return new NextResponse("Retry later", { status: 500 });
   }
 }

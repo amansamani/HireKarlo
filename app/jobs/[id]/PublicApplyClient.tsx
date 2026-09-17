@@ -51,13 +51,15 @@ export default function PublicApplyClient({ job }: { job: PublicJob }) {
     if (!file) return toast.error("Please attach your resume.");
     if (!privacyAcknowledged) return toast.error("Please read and acknowledge the privacy notice.");
     setBusy(true);
+    try {
     const res = await sendApplicationOtpAction(email.trim());
-    setBusy(false);
     if (res?.error) toast.error(res.error);
     else {
-      toast.success(`Verification code sent to ${email.trim()}.`);
+      toast.success(`Verification code queued for ${email.trim()}.`);
       setStep("otp");
     }
+    } catch { toast.error("Could not request a code. Please try again."); }
+    finally { setBusy(false); }
   }
 
 async function verifyAndSubmit(e: React.FormEvent) {
@@ -72,6 +74,8 @@ async function verifyAndSubmit(e: React.FormEvent) {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("jobId", job.id);
+    fd.append("email", email.trim());
+    fd.append("otp", otp.trim());
     const up = await fetch("/api/upload", { method: "POST", body: fd });
     const upJson: unknown = await up.json();
     const uploadId =
@@ -95,6 +99,7 @@ async function verifyAndSubmit(e: React.FormEvent) {
     return;
   }
 
+  try {
   const res = await submitApplicationAction({
     jobId: job.id,
     candidateName: fullName.trim(),
@@ -104,9 +109,10 @@ async function verifyAndSubmit(e: React.FormEvent) {
     privacyAcknowledged,
   });
 
-  setBusy(false);
   if (res?.error) toast.error(res.error);
   else setStep("done");
+  } catch { toast.error("Application could not be submitted. Please retry."); }
+  finally { setBusy(false); }
 }
 
   return (

@@ -1,42 +1,39 @@
 "use server";
+import { logError } from "@/lib/logger";
 
-import { reserveAiScore, lockOrganization } from "@/lib/entitlements";
+import { lockOrganization } from "@/lib/entitlements";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { randomInt } from "crypto";
-import { extractResumeText } from "@/lib/parse-resume";
-import { scoreResumeAgainstJob } from "@/lib/score-resume";
-import { sendEmail } from "@/lib/send-email";
+import { queueAiScore, dispatchAiScore } from "@/lib/ai-scoring-jobs";
+import { enqueueEmail, dispatchQueuedEmail } from "@/lib/send-email";
 import { applicationOtpEmail } from "@/lib/email-templates";
 
 import { normalizeEmail, hashApplicationCode, checkApplicationCode } from "@/lib/application-otp";
 import { allowAuthRequest } from "@/lib/rate-limit";
 
 const OTP_TTL_MS = 10 * 60 * 1000;
-const EmailSchema = z.string().trim().email("Please enter a valid email address.").transform(normalizeEmail);
+const EmailSchema = z.string().trim().max(254).email("Please enter a valid email address.").transform(normalizeEmail);
 
 export async function sendApplicationOtpAction(email: string) {
   const parsed = EmailSchema.safeParse(email);
   if (!parsed.success) return { error: "Please enter a valid email address." };
 
+  try {
   if (!(await allowAuthRequest("application-otp", parsed.data, 3))) {
     return { error: "Too many codes requested for this email. Try again in 10 minutes." };
   }
 
-  try {
     const otp = randomInt(100000, 1000000).toString();
-    await prisma.applicationChallenge.upsert({
-      where: { email: parsed.data },
-      create: { email: parsed.data, codeHash: hashApplicationCode(parsed.data, otp), expiresAt: new Date(Date.now() + OTP_TTL_MS) },
-      update: { codeHash: hashApplicationCode(parsed.data, otp), attempts: 0, expiresAt: new Date(Date.now() + OTP_TTL_MS) },
-    });
-
     const { subject, html } = applicationOtpEmail(otp, "this role");
-    await sendEmail(parsed.data, subject, html);
-
-    return { success: "Verification code sent — check your inbox." };
+    const queuedId = await prisma.$transaction(async tx => {
+      await tx.applicationChallenge.upsert({ where: { email: parsed.data }, create: { email: parsed.data, codeHash: hashApplicationCode(parsed.data, otp), expiresAt: new Date(Date.now() + OTP_TTL_MS) }, update: { codeHash: hashApplicationCode(parsed.data, otp), attempts: 0, expiresAt: new Date(Date.now() + OTP_TTL_MS) } });
+      return enqueueEmail(tx, parsed.data, subject, html);
+    });
+    dispatchQueuedEmail(queuedId);
+    return { success: "Verification code queued — check your inbox." };
   } catch (error) {
-    console.error("[sendApplicationOtpAction] failed:", error);
+    logError("actions.public-apply", error);
     return { error: "Couldn't send the verification code. Check the email address and try again." };
   }
 }
@@ -50,7 +47,7 @@ export async function verifyApplicationOtpAction(email: string, otp: string) {
     if (!(await checkApplicationCode(parsed.data, otp.trim()))) return { error: "That code is invalid, expired, or has too many attempts." };
     return { success: "Email verified." };
   } catch (error) {
-    console.error("[verifyApplicationOtpAction] failed:", error);
+    logError("actions.public-apply", error);
     return { error: "Couldn't verify that code. Please try again." };
   }
 }
@@ -58,7 +55,7 @@ export async function verifyApplicationOtpAction(email: string, otp: string) {
 const ApplicationSchema = z.object({
   jobId: z.string().min(1, "Job ID is required"),
   candidateName: z.string().trim().max(120).min(2, "Name must be at least 2 characters"),
-  candidateEmail: z.string().trim().email("Invalid email address").transform(normalizeEmail),
+  candidateEmail: z.string().trim().max(254).email("Invalid email address").transform(normalizeEmail),
   resumeUploadId: z.string().uuid("Invalid resume upload."),
   otp: z.string().length(6, "Missing email verification code."),
   privacyAcknowledged: z.literal(true, { error: "Please acknowledge the privacy notice." }),
@@ -110,24 +107,7 @@ export async function submitApplicationAction(values: z.infer<typeof Application
 
     const resumeUrl = upload.url;
 
-    let matchScore: number | null = null;
-    let aiSummary: string | null = null;
-
-    if (resumeUrl && process.env.GEMINI_API_KEY) {
-      try {
-        const resumeText = await extractResumeText(resumeUrl);
-        if (!resumeText.trim() || !(await reserveAiScore(job.organizationId))) throw new Error("No readable text or AI allowance exhausted");
-        const score = await scoreResumeAgainstJob(resumeText, job.title, job.description ?? "");
-        if (score) {
-          matchScore = score.matchScore;
-          aiSummary = score.summary;
-        }
-      } catch (scoringError) {
-        console.error("Resume scoring failed, continuing without it:", scoringError);
-      }
-    }
-
-    await prisma.$transaction(async tx => {
+    const applicationId = await prisma.$transaction(async tx => {
     const plan = await lockOrganization(tx, job.organizationId);
     const currentJob = await tx.job.findUnique({ where: { id: jobId }, select: { status: true } });
     if (currentJob?.status !== "OPEN") throw new Error("Job is closed");
@@ -153,11 +133,9 @@ export async function submitApplicationAction(values: z.infer<typeof Application
       },
     });
 
-    await tx.jobApplication.create({
+    const application = await tx.jobApplication.create({
       data: {
         stage: "APPLIED",
-        matchScore,
-        aiSummary,
         resumeUrl,
         privacyAcknowledgedAt: new Date(),
         privacyNoticeVersion: "2026-09-16",
@@ -169,11 +147,13 @@ export async function submitApplicationAction(values: z.infer<typeof Application
         }
       },
     });
-
+    if (process.env.GEMINI_API_KEY) await queueAiScore(tx, application.id);
+    return application.id;
     });
+    dispatchAiScore(applicationId);
     return { success: "Your application has been submitted successfully!" };
   } catch (error) {
-    console.error("Public submission error:", error);
+    logError("actions.public-apply", error);
     return { error: "An error occurred while submitting your application." };
   }
 }
@@ -200,7 +180,7 @@ export async function getApplicationStatusAction(email: string, otp: string) {
 
     return { applications };
   } catch (error) {
-    console.error("[getApplicationStatusAction] failed:", error);
+    logError("actions.public-apply", error);
     return { error: "Couldn't load application status. Please try again." };
   }
 }

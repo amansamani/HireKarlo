@@ -1,4 +1,5 @@
 "use server";
+import { logError } from "@/lib/logger";
 
 import { canEditPipeline } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
@@ -15,7 +16,7 @@ export async function getJobsAction() {
     });
     return { jobs };
   } catch (error) {
-    console.error("[getJobsAction] Database fetch failure:", error);
+    logError("actions.jobs", error);
     return { error: "Failed to fetch jobs", jobs: [] };
   }
 }

@@ -1,3 +1,5 @@
+> Historical prototype case study. Current behavior/security/operations are documented in [architecture](architecture.md) and [Final CTO review](FINAL-CTO-REVIEW.md).
+
 > Historical prototype case study. See architecture.md and PRODUCTION-AUDIT.md for the reviewed SaaS edition.
 
 # Case Study — HireKarlo

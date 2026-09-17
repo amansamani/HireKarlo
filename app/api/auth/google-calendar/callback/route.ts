@@ -1,3 +1,4 @@
+import { logError } from "@/lib/logger";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/require-auth";
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
     teamUrl.searchParams.set("googleConnected", "1");
     return redirectTo(teamUrl);
   } catch {
-    console.error("[google-calendar-callback] token exchange or persistence failed");
+    logError("app.api.auth.google-calendar.callback.route");
     teamUrl.searchParams.set("googleError", "failed");
     return redirectTo(teamUrl);
   }

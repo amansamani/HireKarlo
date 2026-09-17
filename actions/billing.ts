@@ -1,4 +1,5 @@
 "use server";
+import { logError } from "@/lib/logger";
 import { redirect } from "next/navigation";
 import { requireOrg } from "@/lib/require-auth";
 import { prisma } from "@/lib/prisma";
@@ -38,7 +39,7 @@ export async function checkoutAction(form: FormData) {
       return session.url;
     }, { timeout: 40_000 });
   } catch (error) {
-    console.error("[checkout]", error instanceof Error ? error.message : "Provider error");
+    logError("actions.billing", error);
     redirect("/dashboard/billing?error=checkout");
   }
   redirect(url);

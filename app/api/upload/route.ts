@@ -1,7 +1,11 @@
+import { z } from "zod";
+import { normalizeEmail, checkApplicationCode } from "@/lib/application-otp";
+import { logError } from "@/lib/logger";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { cloudinary } from "@/lib/cloudinary";
 import { prisma } from "@/lib/prisma";
+import { assertSafeDocx } from "@/lib/docx-validation";
 import type { UploadApiResponse } from "cloudinary";
 
 import { allowRequest } from "@/lib/rate-limit";
@@ -18,7 +22,6 @@ function matchesSignature(buffer: Buffer, ext: string): boolean {
   const sig = buffer.subarray(0, 4);
   if (ext === "pdf") return sig.toString("ascii", 0, 4) === "%PDF";
   if (ext === "docx") return sig[0] === 0x50 && sig[1] === 0x4b && sig[2] === 0x03 && sig[3] === 0x04;
-  if (ext === "doc") return sig[0] === 0xd0 && sig[1] === 0xcf && sig[2] === 0x11 && sig[3] === 0xe0;
   return false;
 }
 
@@ -29,7 +32,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Too many uploads. Try again in a few minutes." }, { status: 429 });
     }
 
+    if (!req.headers.get("content-type")?.startsWith("multipart/form-data")) return NextResponse.json({error:"Use multipart form data."},{status:400});
+    if (Number(req.headers.get("content-length")) > MAX_SIZE + 64 * 1024) return NextResponse.json({error:"Request too large."},{status:413});
     const formData = await req.formData();
+    const email = z.string().trim().max(254).email().transform(normalizeEmail).safeParse(formData.get("email"));
+    const otp = formData.get("otp");
+    if (!email.success || typeof otp !== "string" || !(await checkApplicationCode(email.data,otp.trim()))) return NextResponse.json({error:"Verify your email before uploading."},{status:403});
     const file = formData.get("file");
     const jobIdValue = formData.get("jobId");
     const jobId = typeof jobIdValue === "string" ? jobIdValue : null;
@@ -65,10 +73,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "File content doesn't match its extension." }, { status: 400 });
     }
 
+    if (ext === "docx") { try { assertSafeDocx(buffer); } catch { return NextResponse.json({ error: "Invalid or oversized DOCX archive." }, { status: 400 }); } }
+
     const publicId = `${randomUUID()}.${ext}`;
     const result = await new Promise<UploadApiResponse>((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         {
+          timeout: 20_000,
           resource_type: "raw",
           folder: "HireKarlo/resumes",
           type: "authenticated",
@@ -100,7 +111,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ uploadId: upload.id });
   } catch (error) {
-    console.error("Upload error:", error);
+    logError("app.api.upload.route", error);
     return NextResponse.json({ error: "Upload processing failed." }, { status: 500 });
   }
 }

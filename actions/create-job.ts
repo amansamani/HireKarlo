@@ -1,4 +1,5 @@
 "use server";
+import { logError } from "@/lib/logger";
 
 import { lockOrganization } from "@/lib/entitlements";
 import { z } from "zod";
@@ -68,7 +69,7 @@ export async function createJobAction(rawData: unknown) {
     
     return { success: "Job position created successfully!", jobId: newJob.id };
   } catch (error) {
-    console.error("[createJobAction] Job creation error:", error);
+    logError("actions.create-job", error);
     if (error instanceof Error && /limit reached|subscription has ended|Client not found/.test(error.message)) return { error: error.message };
     const detail =
       process.env.NODE_ENV !== "production" && error instanceof Error

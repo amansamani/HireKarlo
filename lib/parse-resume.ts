@@ -1,6 +1,7 @@
 import "pdf-parse/worker";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
+import { assertSafeDocx } from "@/lib/docx-validation";
 import { getResumeDownloadUrl } from "@/lib/resume-storage";
 
 export async function extractResumeText(fileUrl: string): Promise<string> {
@@ -29,6 +30,7 @@ export async function extractResumeText(fileUrl: string): Promise<string> {
   }
 
   if (ext === "docx") {
+    assertSafeDocx(buffer);
     const result = await mammoth.extractRawText({ buffer });
     return result.value;
   }

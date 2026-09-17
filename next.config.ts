@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
       { key: "X-Frame-Options", value: "DENY" },
       { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
       ...(process.env.NODE_ENV === "production" ? [{ key: "Strict-Transport-Security", value: "max-age=31536000" }] : []),
-    ] }];
+    ] }, ...["/dashboard/:path*", "/api/:path*", "/login", "/register", "/forgot-password", "/reset-password", "/track", "/rate-interview", "/accept-invite"].map(source => ({ source, headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] }))];
   },
 };
 

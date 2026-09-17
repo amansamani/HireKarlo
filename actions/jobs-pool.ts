@@ -1,4 +1,5 @@
 "use server";
+import { logError } from "@/lib/logger";
 
 import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/require-auth";
@@ -55,7 +56,7 @@ export async function getAllJobsAction(
     const hasMore = rows.length > PAGE_SIZE;
     return { jobs: rows.slice(0, PAGE_SIZE), hasMore, canCreateJob: canEditPipeline(ctx.role) };
   } catch (error) {
-    console.error("Failed to fetch jobs pool:", error);
+    logError("actions.jobs-pool", error);
     return { error: "Failed to load jobs list.", jobs: [], hasMore: false };
   }
 }
@@ -83,7 +84,7 @@ export async function updateJobStatusAction(jobId: string, status: "OPEN" | "CLO
     revalidatePath("/dashboard/jobs");
     return { success: "Status updated." };
   } catch (error) {
-    console.error("[updateJobStatusAction] failed — record doesn't exist or organizationId doesn't match:", error);
+    logError("actions.jobs-pool", error);
     return { error: "Failed to update job status." };
   }
 }
@@ -102,7 +103,7 @@ export async function deleteJobAction(jobId: string) {
     revalidatePath("/dashboard");
     return { success: "Job archived. Applications and audit history are retained." };
   } catch (error) {
-    console.error("[deleteJobAction] failed — record doesn't exist or organizationId doesn't match:", error);
+    logError("actions.jobs-pool", error);
     return { error: "Failed to delete job." };
   }
 }

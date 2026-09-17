@@ -69,6 +69,7 @@ type PipelineApplication = {
   stage: string;
   matchScore: number | null;
   aiSummary: string | null;
+  scoringStatus?: string;
   candidate: { fullName: string; email: string; resumeUrl: string | null };
 };
 type PipelineJob = {
@@ -219,10 +220,9 @@ function CandidateCard({
 
   async function rescore() {
     setScoring(true);
-    const res = await rescoreApplicationAction(app.id, jobId);
-    setScoring(false);
-    if (res?.error) toast.error(res.error);
-    else toast.success("Resume parsed & scored with Gemini.");
+    try { const res = await rescoreApplicationAction(app.id, jobId); if (res?.error) toast.error(res.error); else toast.success(res.success); }
+    catch { toast.error("Could not queue this resume. Try again later."); }
+    finally { setScoring(false); }
   }
 
   const idx = stages.indexOf(app.stage);
@@ -265,11 +265,11 @@ function CandidateCard({
           <button
             type="button"
             onClick={rescore}
-            disabled={scoring}
+            disabled={scoring || app.scoringStatus === "PENDING"}
             className="flex h-7 flex-1 items-center justify-center gap-1 rounded-lg border border-warning/30 bg-warning/10 text-[10px] font-semibold text-warning transition-colors hover:bg-warning/20 disabled:opacity-60"
           >
             {scoring ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-            Score
+            {app.scoringStatus === "PENDING" ? "Queued" : "Score"}
           </button>
         )}
         {editable && next && isInterviewRound(next) && (

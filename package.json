@@ -14,19 +14,20 @@
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "db:deploy": "prisma migrate deploy",
-    "test:integration": "vitest run --config vitest.integration.config.ts"
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "db:seed": "node scripts/seed-demo.mjs",
+    "db:preflight": "node scripts/database-preflight.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
     "@base-ui/react": "^1.6.0",
     "@hookform/resolvers": "^5.4.0",
-    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/adapter-pg": "7.10.0",
     "@vercel/analytics": "^2.0.1",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "cloudinary": "^2.5.1",
     "clsx": "^2.1.1",
-    "googleapis": "^173.0.0",
     "lucide-react": "^1.24.0",
     "mammoth": "^1.12.0",
     "next": "^16.2.11",
@@ -37,17 +38,16 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.81.0",
-    "shadcn": "^4.13.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
     "tw-animate-css": "^1.4.0",
     "zod": "^4.4.3",
     "dotenv": "17.4.2",
-    "@prisma/client": "7.8.0"
+    "@prisma/client": "7.10.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
-    "@prisma/config": "^7.8.0",
+    "@prisma/config": "7.10.0",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
@@ -57,10 +57,11 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "^16.2.11",
-    "prisma": "^7.8.0",
+    "prisma": "7.10.0",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "shadcn": "^4.13.0"
   },
   "overrides": {
     "deepmerge-ts": "^8.0.0",

@@ -1,4 +1,5 @@
 import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
+import { assertAuditDatabase } from "../helpers/audit-db";
 import { randomUUID, createHmac } from "crypto";
 const state = vi.hoisted(() => ({ ctx: { userId: "", organizationId: "", role: "OWNER" }, canonical: {} as Record<string,unknown> }));
 vi.mock("@/lib/require-auth", () => ({ requireOrg: async () => state.ctx, requireAuth: async () => state.ctx.userId }));
@@ -6,7 +7,8 @@ vi.mock("@/lib/auth", () => ({ signIn: vi.fn() }));
 vi.mock("next-auth", () => ({ AuthError: class extends Error { type = "CredentialsSignin"; } }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers({"x-forwarded-for":"127.0.0.1"}), cookies: async () => ({ get: () => undefined, set: vi.fn() }) }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/lib/send-email", () => ({ sendEmail: vi.fn() }));
+vi.mock("@/lib/send-email", async original => ({ ...await original<typeof import("@/lib/send-email")>(), dispatchQueuedEmail: vi.fn(), sendEmail: vi.fn() }));
+vi.mock("@/lib/ai-scoring-jobs", async original => ({ ...await original<typeof import("@/lib/ai-scoring-jobs")>(), dispatchAiScore: vi.fn() }));
 vi.mock("@/lib/parse-resume", () => ({ extractResumeText: async () => "" }));
 vi.mock("@/lib/billing-provider", async (original) => ({ ...await original<typeof import("@/lib/billing-provider")>(), stripeRequest: async () => state.canonical }));
 import { prisma } from "@/lib/prisma";
@@ -24,7 +26,7 @@ describe("SaaS controls against isolated PostgreSQL", () => {
   const prefix = `audit-${randomUUID()}`;
   let userA: string, userB: string, orgA: string, orgB: string, jobB: string;
   beforeAll(async () => {
-    if (!process.env.DATABASE_URL?.includes("hirekarlo_audit")) throw new Error("Use the isolated hirekarlo_audit database; never a customer database");
+    assertAuditDatabase();
     process.env.AUTH_SECRET = "audit-only-secret-do-not-deploy";
     process.env.STRIPE_SECRET_KEY = "sk_test_mock";
     process.env.STRIPE_WEBHOOK_SECRET = "whsec_mock";
@@ -40,6 +42,8 @@ describe("SaaS controls against isolated PostgreSQL", () => {
     state.ctx={userId:userA,organizationId:orgA,role:"OWNER"};
   });
   afterAll(async () => {
+    await prisma.activityLog.deleteMany({where:{userId:{in:[userA,userB].filter(Boolean)}}});
+    await prisma.emailOutbox.deleteMany({where:{recipient:{contains:prefix}}});
     await prisma.organization.deleteMany({where:{id:{in:[orgA,orgB].filter(Boolean)}}});
     await prisma.user.deleteMany({where:{id:{in:[userA,userB].filter(Boolean)}}});
     await prisma.applicationChallenge.deleteMany({where:{email:{startsWith:prefix}}});

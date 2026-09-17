@@ -11,19 +11,17 @@ export function hashApplicationCode(email: string, code: string) {
 export async function checkApplicationCode(email: string, code: string, consume = false): Promise<boolean> {
   if (!/^\d{6}$/.test(code)) return false;
   email = normalizeEmail(email);
-  return prisma.$transaction(async (tx) => {
-    // Increment before comparing. Conditional update serializes concurrent guesses
-    // and every entry point uses the same persistent attempt allowance.
-    const claim = await tx.applicationChallenge.updateMany({
-      where: { email, attempts: { lt: 5 }, expiresAt: { gt: new Date() } },
-      data: { attempts: { increment: 1 } },
-    });
-    if (claim.count !== 1) return false;
-    const record = await tx.applicationChallenge.findUniqueOrThrow({ where: { email } });
-    const expected = Buffer.from(record.codeHash, "hex");
-    const actual = Buffer.from(hashApplicationCode(email, code), "hex");
+  return prisma.$transaction(async tx => {
+    // The same challenge protects uploads, submission and status checks. Only
+    // wrong guesses use the allowance, so successful upload + submit can finish
+    // even after four incorrect guesses. A row lock serializes all entry points.
+    await tx.$queryRaw`SELECT "email" FROM "ApplicationChallenge" WHERE "email" = ${email} FOR UPDATE`;
+    const record = await tx.applicationChallenge.findUnique({ where: { email } });
+    if (!record || record.attempts >= 5 || record.expiresAt <= new Date()) return false;
+    const expected = Buffer.from(record.codeHash, "hex"), actual = Buffer.from(hashApplicationCode(email, code), "hex");
     const valid = expected.length === actual.length && timingSafeEqual(expected, actual);
-    if (valid && consume) await tx.applicationChallenge.delete({ where: { email } });
+    if (!valid) await tx.applicationChallenge.update({ where: { email }, data: { attempts: { increment: 1 } } });
+    else if (consume) await tx.applicationChallenge.delete({ where: { email } });
     return valid;
   });
 }

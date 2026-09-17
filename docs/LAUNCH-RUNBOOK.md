@@ -1,3 +1,5 @@
+> Historical foundation-pass document. Some findings were fixed in the 17 September local CTO pass. Use [Final CTO review](FINAL-CTO-REVIEW.md), [current checklist](MASTER-CHECKLIST.md) and [deployment guide](deployment.md) for current implementation and pending release gates. Older test counts are not final-pass results.
+
 # Staging and launch runbook
 
 Owner: Aman Samani — amanworkinfo@gmail.com. Use your provider dashboards or deployment secret store for credentials; do not send keys in chat.

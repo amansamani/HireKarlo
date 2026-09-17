@@ -1,4 +1,5 @@
 "use client";
+import { logError } from "@/lib/logger";
 
 import { useEffect } from "react";
 
@@ -10,7 +11,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[global error]", error);
+    logError("ui.render_failed", error);
   }, [error]);
 
   return (

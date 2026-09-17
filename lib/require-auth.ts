@@ -1,4 +1,5 @@
 "use server";
+import { logError } from "@/lib/logger";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -8,11 +9,7 @@ export async function requireAuth() {
   const session = await auth();
 
   if (session && !session.user) {
-    console.error(
-      "[requireAuth] auth() returned a session-shaped object with no `.user` — " +
-      "this usually means AUTH_SECRET is missing or invalid, not that the user is logged out.",
-      session
-    );
+    logError("lib.require-auth");
   }
 
   if (!session?.user?.id) return null;
@@ -20,7 +17,7 @@ export async function requireAuth() {
   const userId = session.user.id as string;
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { sessionVersion: true } });
   if (!user || user.sessionVersion !== (session.user as { sessionVersion?: number }).sessionVersion) {
-    console.error(`[requireAuth] session userId ${userId} has no matching User row — stale/invalid session. User must log out and back in.`);
+    logError("lib.require-auth");
     return null;
   }
 
@@ -39,7 +36,7 @@ export async function requireOrg(): Promise<{ userId: string; organizationId: st
   });
 
   if (!membership) {
-    console.error(`[requireOrg] user ${userId} has no Organization membership — should be impossible after signup backfill.`);
+    logError("lib.require-auth");
     return null;
   }
 

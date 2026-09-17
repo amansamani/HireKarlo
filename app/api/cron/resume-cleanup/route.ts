@@ -1,3 +1,4 @@
+import { logError } from "@/lib/logger";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cloudinary } from "@/lib/cloudinary";
@@ -11,7 +12,7 @@ export async function GET(req: NextRequest) {
     let deleted = 0;
     for (const upload of expired) {
       try { await cloudinary.uploader.destroy(upload.publicId, { resource_type: "raw", type: upload.url.includes("/authenticated/") ? "authenticated" : "upload", invalidate: true }); }
-      catch (error) { console.error(`[resume-cleanup] Cloudinary delete failed for ${upload.publicId}:`, error); continue; }
+      catch (error) { logError("app.api.cron.resume-cleanup.route", error); continue; }
       await prisma.resumeUpload.delete({ where: { id: upload.id } }); deleted++;
     }
     await prisma.rateLimit.deleteMany({ where: { expiresAt: { lt: new Date() } } });
@@ -20,5 +21,5 @@ export async function GET(req: NextRequest) {
     const cutoff = new Date(Date.now() - 30 * 86_400_000);
     await prisma.emailOutbox.deleteMany({ where: { OR: [{ sentAt: { lt: cutoff } }, { failedAt: { lt: cutoff } }] } });
     return NextResponse.json({ checked: expired.length, deleted });
-  } catch (error) { console.error("[resume-cleanup] cron failed:", error); return NextResponse.json({ error: "Cleanup failed" }, { status: 500 }); }
+  } catch (error) { logError("app.api.cron.resume-cleanup.route", error); return NextResponse.json({ error: "Cleanup failed" }, { status: 500 }); }
 }

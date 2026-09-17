@@ -1,200 +1,93 @@
 # HireKarlo
 
-> **AI-powered recruitment management built to make hiring faster, smarter, and more organized.**
+HireKarlo is a business recruitment workspace for agencies and company hiring teams. It connects jobs, public applications, candidate pipelines, interviews, team access and advisory AI resume review. Candidates can apply without buying a plan or creating a business account.
 
-🌐 **Live:** https://hirekarlo.amansamani.me/
+Created and maintained by **Aman Samani** · [Author](https://amansamani.me) · **amanworkinfo@gmail.com**. Repository: [HireTrack](https://github.com/amansamani/HireTrack). Existing personal preview: [hirekarlo.amansamani.me](https://hirekarlo.amansamani.me). Originally built for the Digital Heroes Full Stack Developer Trial.
 
-HireKarlo is a full-stack recruitment platform that helps recruiters manage the hiring process from **job posting to interview scheduling and candidate tracking**, with AI assisting in resume evaluation.
+**Status:** reviewed SaaS foundation with targeted local verification. These local changes have not been deployed or migrated to the live database. Actual evidence and release gates: [Final CTO review](docs/FINAL-CTO-REVIEW.md) and [master checklist](docs/MASTER-CHECKLIST.md). No production certification, commercial hosting purchase or payment activation is claimed.
 
-It is a personal project built and maintained by **Aman Samani**.
+## Product
 
----
+- Organization memberships, role restrictions, workspace switching and fourteen-day trial/capacity limits.
+- Jobs and custom rounds, public OTP application/upload/status, application resume snapshot and privacy acknowledgement.
+- Candidate pool/search/CSV, bounded applicant pages, stage history and notifications.
+- Serialized interview bookings, optional Google Calendar/Meet, reviewer feedback and single-use candidate experience ratings.
+- Agency client contacts/job assignments and durable email/AI recovery queues.
+- Optional owner-only Stripe billing with signed idempotent canonical-state webhooks. Merchant setup and actual payments remain unverified.
 
-## ✨ Features
+The problem is scattered hiring records and manual screening work. The first customer is a business hiring team, not a student/job seeker. Current monthly pricing hypotheses are Starter ₹1,499/$29, Growth ₹3,999/$79 and Agency ₹7,999/$149. These are proposed prices, not measured willingness to pay. [Prior market/pricing research](docs/MARKET-AND-PRICING.md) needs validation through paid pilots/renewals before launch. No placement CRM, client portal, job-board syndication, annual billing or Razorpay integration is implemented.
 
-### 💼 Job Management
+AI supports human judgment and can be inaccurate or manipulated. It never automatically hires/rejects candidates. Review original documents and documented job criteria before employment decisions.
 
-Create and manage job openings with detailed job descriptions and recruitment stages.
+## Stack and architecture
 
-Recruiters can publish jobs and share a public application link with candidates.
+Next.js 16 / React 19 / TypeScript; Auth.js credentials/JWTs; PostgreSQL / Prisma 7.10 / pg adapter; Zod / React Hook Form; SMTP / Cloudinary / optional Gemini, Google and Stripe. Frontend, route handlers and server actions run together in the Next.js service. PostgreSQL owns tenant data, limits and durable work. [Architecture and data flows](docs/architecture.md) explain transactions, providers and tradeoffs.
 
-### 📝 Public Candidate Applications
+```text
+app/                  App Router pages, HTTP handlers, errors and metadata
+actions/              Validated recruiting/account/workspace commands
+components/           Forms, dashboard, UI and privacy controls
+lib/                  Auth/context, plans, providers, queues and security helpers
+prisma/               Schema and 24 append-only migrations
+scripts/              Read-only database preflight and guarded local demo seed
+tests/                Unit, isolated database integration and Chromium journeys
+docs/                 Audit, reference, operations and handoff evidence
+.github/workflows/    CI using disposable PostgreSQL
+compose.yaml          Optional loopback-only local audit PostgreSQL
+```
 
-Candidates can apply to a job through a public application page without creating an account.
+## Local setup
 
-They can submit their details and upload their resume directly through the application process.
+Prerequisites: Node **22.12+**, npm, PostgreSQL and Git. This pass ran Node 24.13/PostgreSQL 18; CI specifies Node 22. Docker is optional; the Compose template was not executed in this review.
 
-### 🤖 AI Resume Analysis
+```sh
+git clone https://github.com/amansamani/HireTrack.git
+cd HireTrack
+npm ci
+```
 
-HireKarlo can analyze uploaded resumes against the job description using AI.
+Use the reviewed commit once it is pushed. Copy `.env.example` to `.env` privately (`Copy-Item .env.example .env` in PowerShell or `cp .env.example .env` in a POSIX shell). Configure the three core values: a dedicated database, an unpredictable 32+ character `AUTH_SECRET`, and `NEXT_PUBLIC_APP_URL=http://localhost:3000`. Full variable requirements: [deployment guide](docs/deployment.md).
 
-It extracts relevant candidate information and generates an **AI-based match score** to help recruiters quickly identify promising candidates.
+For optional local PostgreSQL run `docker compose up -d postgres` and use `postgresql://hirekarlo_audit:local_audit_only@localhost:5433/hirekarlo_audit`. Alternatively configure an installed local PostgreSQL with that exact database name. Never point test/seed commands at customer data.
 
-### 📊 Recruitment Pipeline
+```sh
+npm run db:deploy
+npm run db:preflight
+# Optionally set a strong SEED_DEMO_PASSWORD privately, then:
+npm run db:seed
+npm run dev
+```
 
-Manage candidates through a visual recruitment pipeline.
+Open `http://localhost:3000`. The seed creates synthetic business records and a verified `demo-owner@example.test` using the configured seed password; it is repeatable and refuses a nonlocal/non-audit database. Ordinary signup/applicant verification needs SMTP. Actual document intake needs Cloudinary; AI and Calendar are optional. Frontend/backend start together; there is no second backend command.
 
-Typical stages include:
+For production-mode local execution: `npm run build`, then `npm start`. Builds generate Prisma but do not run database migrations. [Database guide](docs/database.md) explains models, indexes, constraints, preflight and recovery.
 
-**Applied → Technical → HR → Offer → Rejected**
+## Verification
 
-Recruiters can move candidates between stages as the hiring process progresses.
+```sh
+npm run lint
+npm run typecheck
+npm test
+npm run test:integration
+npm run build
+npx playwright install chromium
+npm run test:e2e
+```
 
-### 📅 Interview Scheduling
+Use local `hirekarlo_audit` for integration tests. Enable `E2E_AUDIT_DB=true` for authenticated fixtures and `E2E_PRODUCTION=true` for a completed build, with a synthetic secret/local URL. Browser provider credentials are cleared; no real billing/email actions are verified by mocks. [Formal QA matrix](docs/testing.md) and [final result evidence](docs/FINAL-CTO-REVIEW.md) distinguish passes, skips and external checks. Screenshots/reports are generated in ignored `audit-artifacts`/`playwright-report` directories, not committed production marketing assets.
 
-Schedule interviews and keep interview activity connected to the candidate's recruitment journey.
+## API, security and release
 
-Google Calendar integration is supported for interview scheduling.
+[API reference](docs/api.md) covers route methods, inputs, auth, examples and error codes. Server actions are first-party contracts, not a public REST API. Public `/api/health` reports core config/database readiness only.
 
-### 📧 Automated Notifications
+[Security guide](docs/security.md) describes membership scope, session revocation, OTP/tokens, byte-bounded passwords, private new documents, safe logs/analytics and remaining risks. Legacy public resumes/plaintext tokens, PDF parser isolation/malware scanning, strict CSP, independent access testing and real provider privacy/retention checks remain work. Never commit `.env`, tokens or real resumes.
 
-Candidates can receive email notifications when important recruitment events occur, including:
+Follow [deployment/rollback](docs/deployment.md): backup/preflight, apply pending **`20260917000000_reliability_guards`** before new code, configure host scopes, deploy and run authenticated/provider smoke. Pushing to GitHub alone does not ensure a working migration or deployment. Keep default daily `vercel.json` for the current personal/noncommercial Hobby preview; `vercel.production.json` is an inactive commercial-host template. No upgrade is required to inspect this work locally.
 
-* Application stage changes
-* Interview scheduling
-* Interview-related updates
+[Troubleshooting](docs/troubleshooting.md) covers Git divergence, migration/env/pool errors, missing email, upload/AI/Calendar problems and safe support information. [Maintainer workflow](CONTRIBUTING.md) and [changelog](CHANGELOG.md) describe review and maintenance.
 
-### 📈 Recruitment Analytics
+## Known limitations and roadmap
 
-Recruiters can view useful hiring and recruitment insights to understand activity across their jobs and candidates.
+Before customer launch: legacy document/token migration, real SMTP/Cloudinary/Google/Gemini checks, backup/restore and monitoring, commercial hosting/scheduling, merchant/payment lifecycle and professional privacy/data-processing review. Before scale: load/export/parser resource benchmarks and isolation; fuller accessibility/multi-browser QA. Later product work: agency placement/client portal, integrations, SSO/MFA and annual billing when customer evidence supports them. Details and priority/verification state live in the master checklist, rather than treating all present code as finished.
 
-### 🕒 Activity & Audit Tracking
-
-HireKarlo keeps a history of important recruitment actions, making it easier to understand how a candidate moved through the hiring process.
-
-### 🔐 Recruiter Data Isolation
-
-Recruiter accounts are isolated from one another.
-
-Each recruiter can access and manage only the jobs, candidates, applications, and recruitment data belonging to their account.
-
----
-
-## 🚀 What HireKarlo Is Capable Of
-
-HireKarlo brings multiple parts of the recruitment workflow into one platform:
-
-**Job Creation**
-→ Create and publish job openings
-
-**Candidate Applications**
-→ Receive applications through public job links
-
-**Resume Processing**
-→ Upload and process candidate resumes
-
-**AI Evaluation**
-→ Compare resumes against job requirements
-
-**Candidate Management**
-→ Organize candidates inside a recruitment pipeline
-
-**Interview Management**
-→ Schedule and manage interviews
-
-**Communication**
-→ Send automated candidate notifications
-
-**Recruitment Tracking**
-→ Maintain activity history across the hiring process
-
-This makes HireKarlo more than a simple job-posting website — it is designed as an **end-to-end recruitment workflow platform**.
-
----
-
-## 🧠 AI-Powered Hiring Assistance
-
-One of the core ideas behind HireKarlo is reducing the amount of manual screening recruiters have to perform.
-
-Instead of opening every resume individually, recruiters can use AI-assisted resume analysis to quickly understand how closely a candidate's experience matches the requirements of a particular role.
-
-The AI score is intended to be a **screening aid**, not a final hiring decision.
-
-Recruiters should always review candidate information themselves before making employment decisions.
-
----
-
-## ⚠️ Disclaimer
-
-HireKarlo is a **personal independent project created and maintained by Aman Samani**.
-
-It is currently developed as a portfolio/product project and is **not an open-source community project**.
-
-### 🚫 Contributions
-
-**Pull requests, feature contributions, unsolicited code changes, and external development contributions are not currently accepted.**
-
-The project is maintained solely by its creator.
-
-You are welcome to explore the project and use the live application, but please do not submit changes expecting them to be merged.
-
-### 🤖 AI Disclaimer
-
-AI-generated resume analysis, scoring, or recommendations may not always be accurate.
-
-HireKarlo should **not be used as the sole basis for hiring, rejection, interview, or employment decisions**.
-
-Recruiters are responsible for reviewing candidate information and making their own decisions.
-
-### 🔒 Data & Privacy
-
-Candidate resumes and personal information may contain sensitive information.
-
-Users should avoid submitting information that they are not authorized to share and should review the application's privacy policies before using the service.
-
----
-
-## 👨‍💻 About the Project
-
-HireKarlo was designed and built by **Aman Samani** as a personal full-stack project focused on combining:
-
-**Recruitment + AI + Automation + Modern Web Development**
-
-The goal is to explore how AI can assist recruiters while keeping the hiring workflow simple, organized, and efficient.
-
----
-
-## 🌐 Live Application
-
-**HireKarlo:**
-https://hirekarlo.amansamani.me/
-
----
-
-### Built with ❤️ by Aman Samani
-
-
----
-
-## Reviewed SaaS edition
-
-This local edition adds organization-scoped access, restricted interviewer roles, private new resume uploads, transactional application checks, a fourteen-day trial, plan limits, agency client records, workspace switching, optional Stripe billing, and durable email retries. AI assists human review.
-
-It is **not a production-certified deployment**. Existing public resumes, real provider tests, payment eligibility, commercial hosting, operational monitoring and data-processing arrangements must be addressed before paid launch. Razorpay, placement invoicing, client portals, SSO and annual billing are not implemented.
-
-- [Production audit](docs/PRODUCTION-AUDIT.md)
-- [Market research and proposed pricing](docs/MARKET-AND-PRICING.md)
-- [Launch runbook](docs/LAUNCH-RUNBOOK.md)
-- [Pilot plan under ₹3,000/month](docs/BUDGET-PILOT.md)
-- [Verification evidence](docs/VERIFICATION.md)
-- [Current architecture](docs/architecture.md)
-
-## Development
-
-Use Node 22.12 or newer. Run `npm ci`, copy `.env.example` to `.env`, configure a dedicated PostgreSQL database and strong `AUTH_SECRET`, then run `npm run db:deploy` and `npm run dev`. Keep credentials private. Optional services need their environment variables.
-
-Checks: `npm run lint`, `npm run typecheck`, `npm test`, `npm run test:integration`, `npm run build`, `npm run test:e2e`. Integration fixtures require an isolated database whose URL contains `hirekarlo_audit`; never point them at customer data.
-
-Builds do not automatically migrate a production database. Follow the runbook for a controlled migration release. Default `vercel.json` has daily preview schedules. `vercel.production.json` is a commercial-hosting template; it does not activate a paid plan. Vercel Hobby is for personal, non-commercial use.
-
-Pricing hypotheses: Starter ₹1,499 / $29, Growth ₹3,999 / $79, Agency ₹7,999 / $149 per month. Validate willingness to pay with actual paid pilots and renewals.
-
-## Existing repository context
-
-Repository: https://github.com/amansamani/HireTrack
-
-Existing demo: https://hirekarlo.amansamani.me/ — the live deployment was not upgraded by this local transfer.
-
-Originally built as part of the Digital Heroes Full Stack Developer Trial.
-
-Current access is scoped to organization membership and roles. The original project overview above describes its earlier prototype.
+This is a personal product maintained by its creator; unsolicited pull requests/external contributions are not currently accepted. Authorized collaborators should use the maintainer process. The existing [MIT license](license) remains unchanged; contribution acceptance is a separate maintenance policy.

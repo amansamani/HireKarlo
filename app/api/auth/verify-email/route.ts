@@ -1,50 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
+import { normalizeEmail } from "@/lib/application-otp";
+import { logError } from "@/lib/logger";
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const token = searchParams.get("token");
-  const email = searchParams.get("email");
-
+  const token = req.nextUrl.searchParams.get("token"), email = normalizeEmail(req.nextUrl.searchParams.get("email") || "");
   const loginUrl = new URL("/login", req.url);
-
-  if (!token || !email) {
-    loginUrl.searchParams.set("verify_error", "missing_params");
-    return NextResponse.redirect(loginUrl);
-  }
-
+  if (!token || !email || token.length > 200 || email.length > 254) { loginUrl.searchParams.set("verify_error", "missing_params"); return NextResponse.redirect(loginUrl); }
   try {
-    const record = await prisma.verificationToken.findUnique({
-      where: { identifier_token: { identifier: email, token } },
+    const verified = await prisma.$transaction(async tx => {
+      const claimed = await tx.verificationToken.deleteMany({ where: { identifier: email, token, expires: { gt: new Date() } } });
+      if (claimed.count !== 1) return false;
+      await tx.user.update({ where: { email }, data: { emailVerified: new Date() } }); return true;
     });
-
-    if (!record) {
-      loginUrl.searchParams.set("verify_error", "invalid_token");
-      return NextResponse.redirect(loginUrl);
-    }
-
-    if (record.expires < new Date()) {
-      await prisma.verificationToken.delete({
-        where: { identifier_token: { identifier: email, token } },
-      });
-      loginUrl.searchParams.set("verify_error", "expired_token");
-      return NextResponse.redirect(loginUrl);
-    }
-
-    await prisma.user.update({
-      where: { email },
-      data: { emailVerified: new Date() },
-    });
-
-    await prisma.verificationToken.delete({
-      where: { identifier_token: { identifier: email, token } },
-    });
-
-    loginUrl.searchParams.set("verified", "1");
-    return NextResponse.redirect(loginUrl);
-  } catch (error) {
-    console.error("[verify-email] failed:", error);
-    loginUrl.searchParams.set("verify_error", "server_error");
-    return NextResponse.redirect(loginUrl);
-  }
+    loginUrl.searchParams.set(verified ? "verified" : "verify_error", verified ? "1" : "invalid_token");
+  } catch (error) { logError("auth.verification_failed", error); loginUrl.searchParams.set("verify_error", "server_error"); }
+  return NextResponse.redirect(loginUrl);
 }

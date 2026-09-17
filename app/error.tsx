@@ -1,4 +1,5 @@
 "use client";
+import { logError } from "@/lib/logger";
 
 import { useEffect } from "react";
 import { AlertTriangle, RotateCcw } from "lucide-react";
@@ -14,7 +15,7 @@ export default function RootError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[app error]", error);
+    logError("ui.render_failed", error);
   }, [error]);
 
   return (

@@ -26,6 +26,7 @@ jobs:
       DATABASE_URL: postgresql://hirekarlo_audit:audit_only_password@localhost:5432/hirekarlo_audit
       AUTH_SECRET: ci-only-secret-never-use-in-production
       AUTH_TRUST_HOST: "true"
+      E2E_AUDIT_DB: "true"
       NEXT_PUBLIC_APP_URL: http://localhost:3000
 
     steps:

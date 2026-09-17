@@ -38,6 +38,7 @@ model User {
   candidates    Candidate[]
   activityLogs  ActivityLog[]
   memberships   Membership[]
+  ownedOrganizations Organization[] @relation("OrganizationOwnership")
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   sessionVersion Int           @default(0)
@@ -82,6 +83,7 @@ model Organization {
   id          String       @id @default(cuid())
   name        String
   ownerId     String
+  owner       User @relation("OrganizationOwnership", fields: [ownerId], references: [id], onDelete: Restrict)
   createdAt   DateTime     @default(now())
   trialEndsAt DateTime    @default(dbgenerated("(CURRENT_TIMESTAMP + '14 days'::interval)"))
   subscription Subscription?
@@ -158,7 +160,7 @@ model Candidate {
   // recruiter-facing query actually filters on, so the whole team sees the
   // same candidate record instead of one copy per person who touched it.
   recruiterId    String
-  recruiter      User             @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+  recruiter      User             @relation(fields: [recruiterId], references: [id], onDelete: Restrict)
   organizationId String
   organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -183,7 +185,7 @@ model Job {
 
   // Relations
   userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Restrict)
   organizationId String
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -214,6 +216,7 @@ model JobApplication {
   
   interviews        Interview[]
   activityLogs      ActivityLog[]
+  aiScoringJob      AiScoringJob?
   
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
@@ -225,6 +228,7 @@ model JobApplication {
 model Interview {
   id                String    @id @default(cuid())
   applicationId     String
+  pipelineStage     String?
   round             String
   interviewer       String
   interviewerId     String?
@@ -235,6 +239,7 @@ model Interview {
   feedback          String?
   result            String?
   rating            Int?
+  candidateExperienceRating Int?
   interviewerRating Int?
   reminderSentAt    DateTime?
   createdAt         DateTime  @default(now())
@@ -249,7 +254,7 @@ model Interview {
 model ActivityLog {
   id            String          @id @default(cuid())
   userId        String
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User            @relation(fields: [userId], references: [id], onDelete: Restrict)
   applicationId String?
   application   JobApplication? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
   
@@ -313,6 +318,7 @@ model EmailOutbox {
   attempts Int @default(0)
   availableAt DateTime @default(now())
   leaseUntil DateTime?
+  leaseToken String?
   sentAt DateTime?
   failedAt DateTime?
   createdAt DateTime @default(now())
@@ -334,4 +340,18 @@ model AgencyClient {
   jobs Job[]
   createdAt DateTime @default(now())
   @@index([organizationId, createdAt])
+}
+
+model AiScoringJob {
+  applicationId String @id
+  application JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  attempts Int @default(0)
+  availableAt DateTime @default(now())
+  leaseUntil DateTime?
+  leaseToken String?
+  completedAt DateTime?
+  failedAt DateTime?
+  lastErrorCode String?
+  createdAt DateTime @default(now())
+  @@index([completedAt, failedAt, availableAt])
 }

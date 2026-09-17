@@ -2,6 +2,8 @@
 
 import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { allowsAnalytics, sanitizeAnalyticsEvent } from "@/lib/analytics-privacy";
 import { BarChart3, Check, Cookie, Settings2, X } from "lucide-react";
 import { Analytics } from "@vercel/analytics/next";
 
@@ -20,6 +22,7 @@ function readConsent(): Consent {
 const subscribeLoaded = () => () => {};
 
 export function AnalyticsConsent() {
+  const pathname = usePathname();
   const storedConsent = useSyncExternalStore(subscribe, readConsent, () => null);
   const [localConsent, setLocalConsent] = useState<Consent>(null);
   const consent = localConsent ?? storedConsent;
@@ -41,7 +44,7 @@ export function AnalyticsConsent() {
 
   return (
     <>
-      {consent === "accepted" && <Analytics />}
+      {consent === "accepted" && allowsAnalytics(pathname ?? "") && <Analytics beforeSend={sanitizeAnalyticsEvent} debug={false} />}
 
       {!consent && !manageOpen && (
         <div className="fixed inset-x-0 bottom-0 z-[100] p-3 sm:p-5">

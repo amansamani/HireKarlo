@@ -1,4 +1,5 @@
 "use server";
+import { logError } from "@/lib/logger";
 
 import { canEditPipeline } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
@@ -31,7 +32,7 @@ export async function getRecruiterAnalyticsAction() {
 
     return { stats: { totalJobs, totalApplications, totalOffers, totalInterviews, totalHired } };
   } catch (error) {
-    console.error("[getRecruiterAnalyticsAction] Analytics failure:", error);
+    logError("actions.analytics", error);
     return { error: "Failed to compile aggregate platform metrics.", stats: null };
   }
 }
@@ -96,7 +97,7 @@ export async function getNotificationsAction() {
 
     return { notifications, pendingInvites };
   } catch (error) {
-    console.error("[getNotificationsAction] failed:", error);
+    logError("actions.analytics", error);
     return { error: "Failed to load notifications.", notifications: [], pendingInvites: 0 };
   }
 }

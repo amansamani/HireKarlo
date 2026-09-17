@@ -1,33 +1,53 @@
-# Current architecture
+# HireKarlo architecture
 
-Reviewed 16 September 2026. Historical case-study material describes an earlier prototype and should not be used as the current security or deployment specification.
+Current local source, 17 September 2026. Historical prototype descriptions are not the current security specification. HireKarlo is a lightweight business ATS for recruitment agencies and company hiring teams in India and international markets. Candidates apply without business accounts; the product charges workspaces, not applicants.
 
-## Application
+## System and frontend
 
-Next.js 16 App Router and React 19, server actions and route handlers, PostgreSQL through Prisma 7 and the pg adapter. Authentication uses Auth.js credentials and JWTs. Server-side `requireAuth` verifies the user's session version and active organization membership. Proxy routing is an initial navigation check, not the authorization boundary.
+```mermaid
+flowchart LR
+  Business[Business browser] --> Web[Next.js App Router / Auth.js]
+  Applicant[Public applicant browser] --> Web
+  Web --> DB[(PostgreSQL / Prisma)]
+  Web --> Cloud[Authenticated Cloudinary resumes]
+  DB --> Email[EmailOutbox]
+  DB --> AI[AiScoringJob]
+  Web --> Workers[after / authorized recovery cron]
+  Workers --> Email
+  Workers --> AI
+  Email --> SMTP[SMTP]
+  AI --> Gemini[Gemini advisory review]
+  Web --> Google[Optional Calendar OAuth / events]
+  Stripe[Optional signed Stripe events] --> Web
+```
 
-## Tenant model
+React 19 and Next.js 16 App Router divide server data loading/actions from interactive forms/pools/pipeline components. Shared UI primitives, React Hook Form/Zod and Sonner provide inputs/feedback. Dashboard layout verifies server access and supplies the session to client navigation. Pools load bounded pages; the pipeline shows 100 applicants per page with explicit navigation/page-local stage counts. Public marketing/legal/auth/applicant pages use their own layouts and forms. Consent-based analytics is restricted to marketing paths and sanitized before sending. Frontend/backend run in one service, not separately started applications.
 
-Users belong to organizations through memberships. OWNER and ADMIN manage teams; RECRUITER works on hiring pipelines; INTERVIEWER has restricted assigned-interview access. Organization IDs come from authenticated context rather than client form authority. A membership-checked cookie selects the workspace.
+## Backend and boundaries
 
-Organizations own jobs, candidate pools, agency client records, subscriptions and usage counters. Applications join organization candidates to jobs and retain their own resume snapshot, privacy acknowledgement and notice version. Interviews and activity records belong to applications. Shared candidate records do not imply cross-organization identity or access.
+Server actions orchestrate validated business commands; route handlers implement auth, uploads, signed downloads, webhook/cron protocols and core readiness. Helpers own context, roles, entitlements, provider requests, document parsing, templates and durable workers. `requireAuth` checks persisted session version; `requireOrg` checks current membership/workspace selection. Proxy navigation checks never replace server authorization. Hiring roles use tenant-scoped queries; interviewers access only authorized assigned work. Owner/admin privileges differ from owner-only billing.
 
-## Candidate intake and documents
+Prisma 7.10 uses the pg adapter and a bounded pool (default five connections). PostgreSQL transactions serialize quota writes through organization locks, schedule conflicts through organization/application locks and OTP guesses through challenge locks. New owner/creator FKs restrict user deletion to preserve tenant hiring/audit records. Schema field and operational detail is in `database.md`.
 
-Public applicants authenticate their email using a shared database HMAC challenge. Atomic attempt counters protect verification, submission and status access. Application writes atomically claim the challenge and upload, enforce candidate limits and create the application. Newly uploaded PDF/DOCX resumes use authenticated Cloudinary raw storage. Authorized route handlers issue short-lived downloads; historical public URLs still require migration.
+## Main flows
 
-Parsing and Gemini scoring currently run synchronously during intake. A PostgreSQL credit counter bounds attempted AI work; a durable scoring worker remains required for stronger reliability and throughput. Provider results support human judgment.
+1. **Business signup:** validate/cap password bytes and email; enforce pilot/request policy; atomically create user, workspace, membership, verification token and email intent. Deferred SMTP delivery retries from the persisted queue. Verification consumes its token once; credentials require verified account. Reset consumes a scoped token and increments session version in one transaction.
+2. **Applicant intake:** queue email challenge; upload requires its valid live code plus eligible open job. Validate bytes/size/DOCX expansion before private Cloudinary storage; persist expiring upload claim. Submission locks plan/challenge state, enforces tenant candidate capacity/deduplication, claims upload and writes candidate/application/privacy acknowledgement plus optional AI job atomically. Intake succeeds before provider scoring starts.
+3. **AI review:** `after` attempts the persisted job. A UUID lease token fences stale workers; quota is reserved for each actual provider attempt. Text is size-bounded and structured output validated. Owned completion atomically records score/summary; transient failures back off, permanent text/allowance errors or three attempts become failed jobs. Recovery cron checks one job per invocation. It never automatically changes a hiring stage. UI can refresh/requeue deliberately.
+4. **Pipeline/interview:** stage change locks fresh application state and couples audit/notification intent. Schedule serializes conflict check and reservation, rejects terminal applications, and commits stage/audit/outbox before best-effort Google calls. Cancellation preserves a fresh terminal stage and suppresses pending schedule email; it queues cancellation atomically. Candidate experience links are single-use and stored separately from reviewer ratings.
+5. **Team/clients:** invitation seats and notification intents are serialized; acceptance requires matching signed-in email/current invite and plan rules. Membership removal revokes organization access. Clients/jobs must share the active tenant.
+6. **Optional billing:** owner-only checkout verifies configured server prices and pending sessions. Signed, idempotent webhooks retrieve current provider state under organization update serialization; redirects/event metadata alone do not grant entitlements. Past-due/expired plans deny paid capacities. No merchant/payment provider is currently activated.
 
-## Plans and billing
+## Decisions and tradeoffs
 
-`lib/plans.ts` defines capacities and monthly INR/USD prices. A fourteen-day trial uses Growth capacity with 100 total AI attempts. Entitlement transactions lock the organization row before job, seat, candidate and credit checks. Interviewer seats are exempt; pending recruiter invitations reserve seats.
+- Keep the existing modular Next.js monolith rather than add microservices/infrastructure cost. It is appropriate for the preview and small pilots; actions still combine some orchestration and could be separated when complexity warrants.
+- Reuse PostgreSQL for shared rate limits, quotas and durable queues. This avoids a new Redis/queue bill and works across instances, with locking/connection contention to monitor.
+- Commit application/notification intent before external services. Jobs survive function interruption, but delivery is at least once; SMTP acceptance followed by a crash can duplicate an email. Provider calls are not fully idempotent distributed transactions.
+- Keep Calendar best effort after authoritative reservation; durable event reconciliation is deferred. New scoring is durable but parser CPU/malware isolation is not solved by a queue.
+- Use membership-scoped application authorization; RLS/SSO/MFA expansion is deferred. Add regression checks whenever a new tenant query is introduced.
+- Generate Prisma in builds and migrate explicitly. Never let a preview/build silently mutate the customer database.
+- Retain daily Hobby preview crons because the owner has no upgrade budget. Fast automatic recovery/paid-service SLAs require suitable commercial hosting; the separate frequent-cron template is not active.
 
-Optional Stripe checkout verifies server-configured recurring prices and reuses pending sessions. Signed webhook processing is idempotent, locks organization updates, and retrieves canonical provider state before updating subscriptions. Expired or past-due subscriptions cannot obtain active entitlements. Payment redirects do not grant access. Merchant approval, real payment validation and reconciliation are still release gates.
+## Limits and operations
 
-## Email and schedules
-
-Email content is escaped and persisted to an outbox before delivery. Workers lease records, retry failures and retain dead letters. Delivery is at least once, and every business write is not yet atomically coupled to its outbox record. Cron routes require `CRON_SECRET`; cleanup removes expired challenges, request counters and old outbox records. Daily preview scheduling differs from the frequent commercial-hosting template.
-
-## Deployment and checks
-
-Environment-specific databases and credentials are required. Prisma generation runs during build; migrations are an explicit release step. CI uses disposable PostgreSQL rather than live customer secrets. Unit, database integration and Chromium browser checks cover selected critical behavior, not all production risks. See the production audit and runbook for unresolved parsing, calendar concurrency, monitoring and legal/data-handling requirements.
+Pool/projection/pagination reduce routine resource usage, but no load/bundle/heap benchmark was collected. Large CSV exports still allocate the full tenant result. New uploads are private; old public storage and plaintext calendar tokens require inventory/migration. Core health checks DB/config only; real provider tests, alerts, backups, privacy/legal arrangements and payment reconciliation remain external release gates. See `security.md`, `deployment.md` and `FINAL-CTO-REVIEW.md` for evidence and unresolved work.

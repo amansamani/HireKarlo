@@ -1,4 +1,5 @@
 "use server";
+import { logError } from "@/lib/logger";
 
 import { canEditPipeline } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
@@ -46,7 +47,7 @@ export async function getAllCandidatesAction(page: number = 1, search: string = 
     const hasMore = rows.length > PAGE_SIZE;
     return { candidates: rows.slice(0, PAGE_SIZE).map(c => ({ ...c, resumeUrl: c.resumeUrl ? `/api/resumes/${c.id}` : null })), hasMore };
   } catch (error) {
-    console.error("Failed to fetch global candidate pool:", error);
+    logError("actions.candidates-pool", error);
     return { error: "Failed to load candidate list.", candidates: [], hasMore: false };
   }
 }
@@ -89,7 +90,7 @@ export async function exportCandidatesCsvAction() {
     const csv = [header.map(escape).join(","), ...lines].join("\n");
     return { csv };
   } catch (error) {
-    console.error("Failed to export candidates:", error);
+    logError("actions.candidates-pool", error);
     return { error: "Failed to export candidates." };
   }
 }

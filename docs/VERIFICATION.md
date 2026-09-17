@@ -1,3 +1,5 @@
+> Historical foundation-pass document. Some findings were fixed in the 17 September local CTO pass. Use [Final CTO review](FINAL-CTO-REVIEW.md), [current checklist](MASTER-CHECKLIST.md) and [deployment guide](deployment.md) for current implementation and pending release gates. Older test counts are not final-pass results.
+
 # Verification evidence
 
 Local review date: 16 September 2026. Tests ran in the extracted reviewed copy on Windows, with Node and installed lockfile dependencies. Customer data and production provider credentials were not used.

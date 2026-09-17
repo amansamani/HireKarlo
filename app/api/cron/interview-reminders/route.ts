@@ -1,6 +1,7 @@
+import { logError } from "@/lib/logger";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendEmail } from "@/lib/send-email";
+import { enqueueEmail, dispatchQueuedEmail } from "@/lib/send-email";
 import { interviewReminderEmail } from "@/lib/email-templates";
 
 export async function GET(req: NextRequest) {
@@ -16,6 +17,8 @@ export async function GET(req: NextRequest) {
   try {
     const dueInterviews = await prisma.interview.findMany({
       where: { scheduledAt: { gte: windowStart, lte: windowEnd }, reminderSentAt: null },
+      take: 100,
+      orderBy: { scheduledAt: "asc" },
       select: {
         id: true,
         round: true,
@@ -40,17 +43,20 @@ export async function GET(req: NextRequest) {
           interview.interviewer,
           interview.scheduledAt
         );
-        await sendEmail(interview.application.candidate.email, subject, html, undefined, `interview-reminder:${interview.id}`);
-        await prisma.interview.update({ where: { id: interview.id }, data: { reminderSentAt: new Date() } });
+        const id = await prisma.$transaction(async tx => {
+          await tx.interview.update({ where: { id: interview.id }, data: { reminderSentAt: new Date() } });
+          return enqueueEmail(tx, interview.application.candidate.email, subject, html, undefined, `interview-reminder:${interview.id}`);
+        });
+        dispatchQueuedEmail(id);
         sent++;
       } catch (err) {
-        console.error(`[interview-reminders] failed for interview ${interview.id}:`, err);
+        logError("app.api.cron.interview-reminders.route", err);
       }
     }
 
     return NextResponse.json({ checked: dueInterviews.length, sent });
   } catch (error) {
-    console.error("[interview-reminders] cron failed:", error);
+    logError("app.api.cron.interview-reminders.route", error);
     return NextResponse.json({ error: "Cron failed" }, { status: 500 });
   }
 }

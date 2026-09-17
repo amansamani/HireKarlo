@@ -1,13 +1,16 @@
+import Link from "next/link";
 import { getJobApplicantsAction } from "@/actions/application";
 import JobPipelineClient from "./JobPipelineClient";
 
 export default async function JobPipelinePage({
-  params,
+  params, searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{page?:string}>;
 }) {
   const { id } = await params;
-  const raw = await getJobApplicantsAction(id);
+  const requestedPage = Number((await searchParams).page ?? 1);
+  const raw = await getJobApplicantsAction(id, requestedPage);
 
   if ("error" in raw && raw.error) {
     return (
@@ -41,5 +44,5 @@ export default async function JobPipelinePage({
     interviewRounds: rawJob.interviewRounds ?? [],
   };
 
-  return <JobPipelineClient job={job} initialApplications={applications} />;
+  return <><div className="mx-auto flex max-w-7xl flex-wrap items-center gap-4 px-6 pt-4 text-sm"><p>Page {raw.page ?? 1}. Stage counts describe the applicants on this page (up to 100).</p><nav aria-label="Applicant pages" className="flex gap-4">{(raw.page ?? 1) > 1 && <Link href={`?page=${(raw.page ?? 1)-1}`}>Previous</Link>}{raw.hasMore && <Link href={`?page=${(raw.page ?? 1)+1}`}>Next</Link>}</nav></div><JobPipelineClient job={job} initialApplications={applications} /></>;
 }

@@ -30,6 +30,7 @@ export async function exchangeCodeForTokens(code: string): Promise<{
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const res = await fetch(GOOGLE_TOKEN_URL, {
     method: "POST",
+    signal: AbortSignal.timeout(15_000),
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       client_id: requireEnv("GOOGLE_CLIENT_ID"),
@@ -39,12 +40,13 @@ export async function exchangeCodeForTokens(code: string): Promise<{
       redirect_uri: `${baseUrl}/api/auth/google-calendar/callback`,
     }),
   });
-  if (!res.ok) throw new Error(`Google token exchange failed: ${await res.text()}`);
+  if (!res.ok) throw new Error(`Google token exchange failed: ${res.status}`);
   return res.json();
 }
 
 export async function getGoogleUserEmail(accessToken: string): Promise<string | null> {
   const res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+    signal: AbortSignal.timeout(15_000),
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!res.ok) return null;
@@ -55,6 +57,7 @@ export async function getGoogleUserEmail(accessToken: string): Promise<string | 
 async function refreshAccessToken(refreshToken: string): Promise<string> {
   const res = await fetch(GOOGLE_TOKEN_URL, {
     method: "POST",
+    signal: AbortSignal.timeout(15_000),
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       client_id: requireEnv("GOOGLE_CLIENT_ID"),
@@ -63,8 +66,9 @@ async function refreshAccessToken(refreshToken: string): Promise<string> {
       grant_type: "refresh_token",
     }),
   });
-  if (!res.ok) throw new Error(`Google token refresh failed: ${await res.text()}`);
+  if (!res.ok) throw new Error(`Google token refresh failed: ${res.status}`);
   const data = await res.json();
+  if (typeof data.access_token !== "string" || !data.access_token) throw new Error("Invalid Google token response");
   return data.access_token;
 }
 
@@ -84,12 +88,13 @@ export async function createMeetEvent(params: {
 }): Promise<{ meetingLink: string | null; eventId: string | null }> {
   const accessToken = await refreshAccessToken(params.refreshToken);
   const end = new Date(params.start.getTime() + params.durationMinutes * 60_000);
-  const tz = params.timezone || "Asia/Kolkata"; // ✅
+  const tz = params.timezone || "UTC"; // ✅
 
   const res = await fetch(
     "https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all",
     {
       method: "POST",
+      signal: AbortSignal.timeout(15_000),
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
@@ -110,7 +115,7 @@ export async function createMeetEvent(params: {
     }
   );
 
-  if (!res.ok) throw new Error(`Google Calendar event creation failed: ${await res.text()}`);
+  if (!res.ok) throw new Error(`Google Calendar event creation failed: ${res.status}`);
   const event = await res.json();
   return { meetingLink: event.hangoutLink ?? null, eventId: event.id ?? null };
 }
@@ -119,14 +124,15 @@ export async function deleteMeetEvent(params: { refreshToken: string; eventId: s
   const accessToken = await refreshAccessToken(params.refreshToken);
 
   const res = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${params.eventId}?sendUpdates=none`,
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(params.eventId)}?sendUpdates=none`,
     {
       method: "DELETE",
+      signal: AbortSignal.timeout(15_000),
       headers: { Authorization: `Bearer ${accessToken}` },
     }
   );
 
   if (!res.ok && res.status !== 404 && res.status !== 410) {
-    throw new Error(`Google Calendar event deletion failed: ${await res.text()}`);
+    throw new Error(`Google Calendar event deletion failed: ${res.status}`);
   }
 }

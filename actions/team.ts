@@ -1,11 +1,12 @@
 "use server";
+import { logError } from "@/lib/logger";
 
 import { prisma } from "@/lib/prisma";
 import { requireOrg, requireAuth } from "@/lib/require-auth";
 import { canManageTeam } from "@/lib/roles";
 import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
-import { sendEmail } from "@/lib/send-email";
+import { enqueueEmail, dispatchQueuedEmail } from "@/lib/send-email";
 import { escapeHtml } from "@/lib/html";
 import { z } from "zod";
 import { lockOrganization } from "@/lib/entitlements";
@@ -61,7 +62,7 @@ export async function getTeamAction() {
       googleCalendarEmail: org?.googleCalendarEmail ?? null,
     };
   } catch (error) {
-    console.error("[getTeamAction] failed:", error);
+    logError("actions.team", error);
     return { error: "Failed to load team.", members: [], invites: [] };
   }
 }
@@ -79,7 +80,7 @@ export async function disconnectGoogleCalendarAction() {
     revalidatePath("/dashboard/team");
     return { success: "Google Calendar disconnected." };
   } catch (error) {
-    console.error("[disconnectGoogleCalendarAction] failed:", error);
+    logError("actions.team", error);
     return { error: "Failed to disconnect." };
   }
 }
@@ -95,7 +96,7 @@ export async function updateMyBioAction(bio: string) {
     revalidatePath("/dashboard/team");
     return { success: "Bio updated." };
   } catch (error) {
-    console.error("[updateMyBioAction] failed:", error);
+    logError("actions.team", error);
     return { error: "Failed to update bio." };
   }
 }
@@ -117,7 +118,7 @@ export async function inviteTeamMemberAction(rawData: unknown) {
     const org = await prisma.organization.findUnique({ where: { id: ctx.organizationId }, select: { name: true } });
     const token = randomBytes(24).toString("hex");
 
-    await prisma.$transaction(async tx => {
+    const emailId = await prisma.$transaction(async tx => {
     const plan = await lockOrganization(tx, ctx.organizationId);
     if (parsed.data.role !== "INTERVIEWER") {
       const seats = await tx.membership.count({ where: { organizationId: ctx.organizationId, role: { not: "INTERVIEWER" } } });
@@ -135,11 +136,10 @@ export async function inviteTeamMemberAction(rawData: unknown) {
       },
       update: { role: parsed.data.role, token, expires: new Date(Date.now() + INVITE_TTL_MS) },
     });
-    });
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const acceptUrl = `${baseUrl}/accept-invite?token=${token}`;
-    await sendEmail(
+    return enqueueEmail(tx,
       parsed.data.email,
       `You've been invited to join ${org?.name ?? "a team"} on HireKarlo`,
       `<div style="font-family: sans-serif; max-width: 480px; margin: auto; padding: 24px;">
@@ -150,10 +150,12 @@ export async function inviteTeamMemberAction(rawData: unknown) {
       </div>`
     );
 
+    });
+    dispatchQueuedEmail(emailId);
     revalidatePath("/dashboard/team");
-    return { success: "Invite sent." };
+    return { success: "Invite queued." };
   } catch (error) {
-    console.error("[inviteTeamMemberAction] failed:", error);
+    logError("actions.team", error);
     if (error instanceof Error && /limit reached|subscription has ended/.test(error.message)) return { error: error.message };
     return { error: "Failed to send invite." };
   }
@@ -200,7 +202,7 @@ export async function acceptInviteAction(token: string) {
 
     return { success: "You've joined the team!" };
   } catch (error) {
-    console.error("[acceptInviteAction] failed:", error);
+    logError("actions.team", error);
     return { error: "Failed to accept invite." };
   }
 }
@@ -222,7 +224,7 @@ export async function removeMemberAction(membershipId: string) {
     revalidatePath("/dashboard/team");
     return { success: "Member removed." };
   } catch (error) {
-    console.error("[removeMemberAction] failed:", error);
+    logError("actions.team", error);
     return { error: "Failed to remove member." };
   }
 }
