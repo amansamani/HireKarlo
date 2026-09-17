@@ -162,3 +162,39 @@ https://hirekarlo.amansamani.me/
 ---
 
 ### Built with ❤️ by Aman Samani
+
+
+---
+
+## Reviewed SaaS edition
+
+This local edition adds organization-scoped access, restricted interviewer roles, private new resume uploads, transactional application checks, a fourteen-day trial, plan limits, agency client records, workspace switching, optional Stripe billing, and durable email retries. AI assists human review.
+
+It is **not a production-certified deployment**. Existing public resumes, real provider tests, payment eligibility, commercial hosting, operational monitoring and data-processing arrangements must be addressed before paid launch. Razorpay, placement invoicing, client portals, SSO and annual billing are not implemented.
+
+- [Production audit](docs/PRODUCTION-AUDIT.md)
+- [Market research and proposed pricing](docs/MARKET-AND-PRICING.md)
+- [Launch runbook](docs/LAUNCH-RUNBOOK.md)
+- [Pilot plan under ₹3,000/month](docs/BUDGET-PILOT.md)
+- [Verification evidence](docs/VERIFICATION.md)
+- [Current architecture](docs/architecture.md)
+
+## Development
+
+Use Node 22.12 or newer. Run `npm ci`, copy `.env.example` to `.env`, configure a dedicated PostgreSQL database and strong `AUTH_SECRET`, then run `npm run db:deploy` and `npm run dev`. Keep credentials private. Optional services need their environment variables.
+
+Checks: `npm run lint`, `npm run typecheck`, `npm test`, `npm run test:integration`, `npm run build`, `npm run test:e2e`. Integration fixtures require an isolated database whose URL contains `hirekarlo_audit`; never point them at customer data.
+
+Builds do not automatically migrate a production database. Follow the runbook for a controlled migration release. Default `vercel.json` has daily preview schedules. `vercel.production.json` is a commercial-hosting template; it does not activate a paid plan. Vercel Hobby is for personal, non-commercial use.
+
+Pricing hypotheses: Starter ₹1,499 / $29, Growth ₹3,999 / $79, Agency ₹7,999 / $149 per month. Validate willingness to pay with actual paid pilots and renewals.
+
+## Existing repository context
+
+Repository: https://github.com/amansamani/HireTrack
+
+Existing demo: https://hirekarlo.amansamani.me/ — the live deployment was not upgraded by this local transfer.
+
+Originally built as part of the Digital Heroes Full Stack Developer Trial.
+
+Current access is scoped to organization membership and roles. The original project overview above describes its earlier prototype.

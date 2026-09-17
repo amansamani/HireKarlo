@@ -1,6 +1,5 @@
 "use server";
 
-import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { signIn } from "@/lib/auth";
@@ -10,8 +9,12 @@ import { generateVerificationToken } from "@/lib/generate-token";
 import { sendEmail } from "@/lib/send-email";
 import { verifyEmailTemplate, resetPasswordEmailTemplate } from "@/lib/email-templates";
 
+import { normalizeEmail } from "@/lib/application-otp";
+import { allowAuthRequest } from "@/lib/rate-limit";
+
 const passwordRule = z
   .string()
+  .max(128, "Password must be at most 128 characters")
   .min(8, "Password must be at least 8 characters")
   .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
   .regex(/[0-9]/, "Password must contain at least one number")
@@ -19,12 +22,12 @@ const passwordRule = z
 
 const RegisterSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Invalid email address"),
+  email: z.string().trim().email("Invalid email address").transform(normalizeEmail),
   password: passwordRule,
 });
 
 const LoginSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.string().trim().email("Invalid email address").transform(normalizeEmail),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
@@ -36,6 +39,11 @@ export async function registerAction(values: z.infer<typeof RegisterSchema>) {
   }
 
   const { name, email, password } = validatedFields.data;
+  const pilotAllowlist = process.env.PILOT_SIGNUP_EMAILS?.split(",").map(normalizeEmail).filter(Boolean);
+  if (pilotAllowlist?.length && !pilotAllowlist.includes(email)) {
+    return { error: "HireKarlo is running a private pilot. Contact amanworkinfo@gmail.com for access." };
+  }
+  if (!(await allowAuthRequest("register", email, 3))) return { error: "Too many requests. Try again later." };
 
   try {
     const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -94,7 +102,7 @@ export async function registerAction(values: z.infer<typeof RegisterSchema>) {
       console.error("[registerAction] verification email failed:", emailErr);
     }
 
-    return { success: "Account created! ..." };
+    return { success: "Account created. Check your email for the verification link." };
     
   } catch (error) {
     console.error("[registerAction] failed:", error);
@@ -113,8 +121,31 @@ export async function registerAction(values: z.infer<typeof RegisterSchema>) {
 }
 
 const RequestResetSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.string().trim().email("Invalid email address").transform(normalizeEmail),
 });
+
+export async function resendVerificationAction(values: z.infer<typeof RequestResetSchema>) {
+  const parsed = RequestResetSchema.safeParse(values);
+  if (!parsed.success) return { error: "Enter a valid email address." };
+  const { email } = parsed.data;
+  if (!(await allowAuthRequest("resend-verification", email, 3))) return { error: "Too many requests. Try again later." };
+  try {
+    const user = await prisma.user.findUnique({ where: { email }, select: { name: true, emailVerified: true } });
+    if (user && !user.emailVerified) {
+      const token = generateVerificationToken();
+      await prisma.$transaction(async tx => {
+        await tx.verificationToken.deleteMany({ where: { identifier: email } });
+        await tx.verificationToken.create({ data: { identifier: email, token, expires: new Date(Date.now() + 86_400_000) } });
+      });
+      const url = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/auth/verify-email?token=${token}&email=${encodeURIComponent(email)}`;
+      const template = verifyEmailTemplate(user.name ?? "there", url);
+      await sendEmail(email, template.subject, template.html);
+    }
+    return { success: "If this account needs verification, an email is on its way." };
+  } catch {
+    return { error: "Couldn't queue a verification email. Contact support if this continues." };
+  }
+}
 
 export async function requestPasswordResetAction(values: z.infer<typeof RequestResetSchema>) {
   const validatedFields = RequestResetSchema.safeParse(values);
@@ -123,6 +154,7 @@ export async function requestPasswordResetAction(values: z.infer<typeof RequestR
   }
 
   const { email } = validatedFields.data;
+  if (!(await allowAuthRequest("password-reset", email, 3))) return { error: "Too many requests. Try again later." };
   // Separate namespace from the register-flow verify token (identifier: email)
   // and the public-apply OTP (identifier: "apply-otp:<email>") — same table,
   // same convention used elsewhere in this file.
@@ -150,17 +182,13 @@ export async function requestPasswordResetAction(values: z.infer<typeof RequestR
       const resetUrl = `${baseUrl}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
       const { subject, html } = resetPasswordEmailTemplate(user.name ?? "there", resetUrl);
 
-      // Fire-and-forget from the response's perspective (so response time
-      // doesn't leak account existence — see comment history), but wrapped
-      // in after() so Vercel keeps the function alive until this actually
-      // finishes instead of freezing/killing it the instant we return below.
-      after(async () => {
-        try {
+      // Persist the notification before returning; delivery and retries happen
+      // through the outbox. The public response does not disclose account state.
+      try {
           await sendEmail(email, subject, html);
         } catch (emailErr) {
           console.error("[requestPasswordResetAction] reset email failed:", emailErr);
-        }
-      });
+      }
     }
 
     return { success: "If an account exists for that email, a reset link is on its way." };
@@ -171,7 +199,7 @@ export async function requestPasswordResetAction(values: z.infer<typeof RequestR
 }
 
 const ResetPasswordSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.string().trim().email("Invalid email address").transform(normalizeEmail),
   token: z.string().min(1, "Missing reset token."),
   password: passwordRule,
 });
@@ -199,14 +227,11 @@ export async function resetPasswordAction(values: z.infer<typeof ResetPasswordSc
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    await prisma.user.update({
-      where: { email },
-      data: { password: hashedPassword },
+    await prisma.$transaction(async (tx) => {
+      const consumed = await tx.verificationToken.deleteMany({ where: { identifier, token, expires: { gt: new Date() } } });
+      if (consumed.count !== 1) throw new Error("Reset token expired or already used");
+      await tx.user.update({ where: { email }, data: { password: hashedPassword, sessionVersion: { increment: 1 } } });
     });
-
-    // Single-use — burn the token whether the update succeeded or we'd have
-    // already returned above.
-    await prisma.verificationToken.delete({ where: { identifier_token: { identifier, token } } });
 
     return { success: "Password updated — you can log in now." };
   } catch (error) {
@@ -223,6 +248,7 @@ export async function loginAction(values: z.infer<typeof LoginSchema>) {
   }
 
   const { email, password } = validatedFields.data;
+  if (!(await allowAuthRequest("login", email))) return { error: "Too many login attempts. Try again later." };
 
   try {
     const user = await prisma.user.findUnique({ where: { email } });

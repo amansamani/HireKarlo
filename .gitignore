@@ -41,3 +41,9 @@ yarn-error.log*
 next-env.d.ts
 
 /public/uploads
+
+!.env.example
+/.tmp.driveupload/
+/playwright-report/
+/test-results/
+/audit-artifacts/

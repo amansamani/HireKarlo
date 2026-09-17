@@ -1,4 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 import { getJobApplicantsAction } from "@/actions/application";
 import JobPipelineClient from "./JobPipelineClient";
 
@@ -8,10 +7,9 @@ export default async function JobPipelinePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const raw: any = await getJobApplicantsAction(id);
+  const raw = await getJobApplicantsAction(id);
 
-  if (!raw || raw.error) {
+  if ("error" in raw && raw.error) {
     return (
       <div className="mx-auto max-w-5xl rounded-2xl border border-dashed border-border/60 bg-card/30 py-16 text-center">
         <p className="text-base font-semibold">Pipeline not found</p>
@@ -22,8 +20,8 @@ export default async function JobPipelinePage({
     );
   }
 
-  const rawJob = raw.job ?? null;
-  const applications = raw.applications ?? raw.applicants ?? [];
+  const rawJob = "job" in raw ? raw.job : null;
+  const applications = raw.applications;
 
   if (!rawJob) {
     return (

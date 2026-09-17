@@ -9,6 +9,24 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: hirekarlo_audit
+          POSTGRES_PASSWORD: audit_only_password
+          POSTGRES_DB: hirekarlo_audit
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U hirekarlo_audit"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://hirekarlo_audit:audit_only_password@localhost:5432/hirekarlo_audit
+      AUTH_SECRET: ci-only-secret-never-use-in-production
+      AUTH_TRUST_HOST: "true"
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
 
     steps:
       - name: Checkout code
@@ -32,11 +50,22 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
+      - name: Unit tests
+        run: npm test
+
+      - name: Replay database migrations
+        run: npm run db:deploy
+
+      - name: Database security and SaaS integration tests
+        run: npm run test:integration
+
       - name: Build
         run: npm run build
+
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser checks
+        run: npm run test:e2e
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          E2E_PRODUCTION: "true"

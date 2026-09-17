@@ -1,4 +1,8 @@
+import { escapeHtml } from "@/lib/html";
+
 export function verifyEmailTemplate(name: string, verifyUrl: string) {
+  name = escapeHtml(name);
+  verifyUrl = escapeHtml(verifyUrl);
   return {
     subject: "Verify your email — HireKarlo",
     html: `
@@ -16,6 +20,9 @@ export function verifyEmailTemplate(name: string, verifyUrl: string) {
 }
 
 export function stageChangeEmail(candidateName: string, jobTitle: string, newStage: string) {
+  candidateName = escapeHtml(candidateName);
+  jobTitle = escapeHtml(jobTitle);
+  newStage = escapeHtml(newStage);
   const messages: Record<string, { subject: string; body: string }> = {
     SCREENING: {
       subject: `Update on your application for ${jobTitle}`,
@@ -61,6 +68,8 @@ export function stageChangeEmail(candidateName: string, jobTitle: string, newSta
 }
 
 export function applicationOtpEmail(otp: string, jobTitle: string) {
+  otp = escapeHtml(otp);
+  jobTitle = escapeHtml(jobTitle);
   return {
     subject: `Your verification code: ${otp}`,
     html: `
@@ -85,8 +94,13 @@ export function interviewScheduledEmail(
   scheduledAt: Date,
   meetingLink?: string | null
 ) {
+  candidateName = escapeHtml(candidateName);
+  jobTitle = escapeHtml(jobTitle);
+  round = escapeHtml(round);
+  interviewer = escapeHtml(interviewer);
+  meetingLink = meetingLink ? escapeHtml(meetingLink) : null;
   const formattedDate =
-    scheduledAt.toLocaleString("en-IN", { dateStyle: "full", timeStyle: "short", timeZone: "Asia/Kolkata" }) + " IST";
+    scheduledAt.toLocaleString("en-IN", { dateStyle: "full", timeStyle: "short", timeZone: "UTC" }) + " UTC";
 
   return {
     subject: `Interview scheduled — ${jobTitle}`,
@@ -107,8 +121,11 @@ export function interviewScheduledEmail(
 }
 
 export function interviewCancelledEmail(candidateName: string, jobTitle: string, round: string, scheduledAt: Date) {
+  candidateName = escapeHtml(candidateName);
+  jobTitle = escapeHtml(jobTitle);
+  round = escapeHtml(round);
   const formattedDate =
-    scheduledAt.toLocaleString("en-IN", { dateStyle: "full", timeStyle: "short", timeZone: "Asia/Kolkata" }) + " IST";
+    scheduledAt.toLocaleString("en-IN", { dateStyle: "full", timeStyle: "short", timeZone: "UTC" }) + " UTC";
 
   return {
     subject: `Interview cancelled — ${jobTitle}`,
@@ -130,8 +147,12 @@ export function interviewReminderEmail(
   interviewer: string,
   scheduledAt: Date
 ) {
+  candidateName = escapeHtml(candidateName);
+  jobTitle = escapeHtml(jobTitle);
+  round = escapeHtml(round);
+  interviewer = escapeHtml(interviewer);
   const formattedDate =
-    scheduledAt.toLocaleString("en-IN", { dateStyle: "full", timeStyle: "short", timeZone: "Asia/Kolkata" }) + " IST";
+    scheduledAt.toLocaleString("en-IN", { dateStyle: "full", timeStyle: "short", timeZone: "UTC" }) + " UTC";
 
   return {
     subject: `Reminder: your ${round} is coming up — ${jobTitle}`,
@@ -151,6 +172,8 @@ export function interviewReminderEmail(
 }
 
 export function resetPasswordEmailTemplate(name: string, resetUrl: string) {
+  name = escapeHtml(name);
+  resetUrl = escapeHtml(resetUrl);
   return {
     subject: "Reset your password — HireKarlo",
     html: `

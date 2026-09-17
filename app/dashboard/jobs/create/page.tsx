@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -68,7 +68,7 @@ export default function CreateJobPage() {
     },
   });
 
-  const preview = form.watch();
+  const preview = useWatch({ control: form.control });
   const descLength = preview.description?.length ?? 0;
 
   function updateRound(index: number, value: string) {
@@ -427,7 +427,7 @@ export default function CreateJobPage() {
                   </span>
                   <span className="flex items-center gap-1 rounded-lg bg-muted/50 px-2 py-1">
                     <Clock className="h-3 w-3" aria-hidden="true" />
-                    {preview.type.replace("_", " ").toLowerCase()}
+                    {(preview.type ?? "FULL_TIME").replace("_", " ").toLowerCase()}
                   </span>
                 </div>
               </div>

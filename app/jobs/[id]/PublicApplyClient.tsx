@@ -32,15 +32,16 @@ export default function PublicApplyClient({ job }: { job: PublicJob }) {
   const [email, setEmail] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [otp, setOtp] = useState("");
+  const [privacyAcknowledged, setPrivacyAcknowledged] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   function pickFile(f: File | undefined | null) {
     if (!f) return;
-    const ok = ["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"].includes(f.type);
-    if (!ok) return toast.error("Only PDF, DOC or DOCX files are accepted.");
-    if (f.size > 5 * 1024 * 1024) return toast.error("Resume must be under 5 MB.");
+    const ok = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"].includes(f.type);
+    if (!ok) return toast.error("Only PDF or DOCX files are accepted.");
+    if (f.size > 3 * 1024 * 1024) return toast.error("Resume must be under 3 MB.");
     setFile(f);
   }
 
@@ -48,6 +49,7 @@ export default function PublicApplyClient({ job }: { job: PublicJob }) {
     e.preventDefault();
     if (!fullName.trim() || !email.trim()) return toast.error("Please fill in your name and email.");
     if (!file) return toast.error("Please attach your resume.");
+    if (!privacyAcknowledged) return toast.error("Please read and acknowledge the privacy notice.");
     setBusy(true);
     const res = await sendApplicationOtpAction(email.trim());
     setBusy(false);
@@ -60,6 +62,7 @@ export default function PublicApplyClient({ job }: { job: PublicJob }) {
 
 async function verifyAndSubmit(e: React.FormEvent) {
   e.preventDefault();
+  if (!privacyAcknowledged) return toast.error("Please acknowledge the privacy notice.");
   if (otp.trim().length !== 6) return toast.error("Enter the 6-digit code from your email.");
   if (!file) return toast.error("Please attach your resume.");
   setBusy(true);
@@ -98,6 +101,7 @@ async function verifyAndSubmit(e: React.FormEvent) {
     candidateEmail: email.trim(),
     resumeUploadId,
     otp: otp.trim(),
+    privacyAcknowledged,
   });
 
   setBusy(false);
@@ -188,9 +192,9 @@ async function verifyAndSubmit(e: React.FormEvent) {
                     }`}>
                     <UploadCloud className={`h-8 w-8 ${dragOver ? "text-primary" : "text-muted-foreground"}`} />
                     <p className="text-sm font-medium">{file ? file.name : "Drop your resume here or click to browse"}</p>
-                    <p className="text-[11px] text-muted-foreground">PDF, DOC or DOCX · max 5 MB</p>
+                    <p className="text-[11px] text-muted-foreground">PDF or DOCX · max 3 MB</p>
                   </button>
-                  <input ref={inputRef} type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={(e) => pickFile(e.target.files?.[0])} />
+                  <input ref={inputRef} type="file" accept=".pdf,.docx" className="hidden" onChange={(e) => pickFile(e.target.files?.[0])} />
                   {file && (
                     <div className="flex items-center justify-between rounded-xl border border-primary/30 bg-primary/10 px-3 py-2">
                       <span className="flex items-center gap-2 text-xs font-medium text-primary">
@@ -203,6 +207,7 @@ async function verifyAndSubmit(e: React.FormEvent) {
                   )}
                 </div>
 
+                <label className="flex items-start gap-3 text-xs leading-5 text-muted-foreground"><input className="mt-1" type="checkbox" required checked={privacyAcknowledged} onChange={e => setPrivacyAcknowledged(e.target.checked)} /><span>I have read the <Link href="/privacy" className="underline" target="_blank" rel="noopener noreferrer">privacy notice</Link> and understand my application is shared with the hiring organization and may receive AI-assisted review.</span></label>
                 <Button type="submit" disabled={busy}
                   className="h-12 w-full rounded-xl font-semibold shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.01]">
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Continue — email me a code"}

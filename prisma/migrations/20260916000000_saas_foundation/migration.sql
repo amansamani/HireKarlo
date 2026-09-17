@@ -1,0 +1,18 @@
+ALTER TABLE "User" ADD COLUMN "sessionVersion" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "Organization" ADD COLUMN "trialEndsAt" TIMESTAMP(3) NOT NULL DEFAULT (CURRENT_TIMESTAMP + interval '14 days');
+CREATE TABLE "RateLimit" ("key" TEXT PRIMARY KEY, "count" INTEGER NOT NULL DEFAULT 0, "expiresAt" TIMESTAMP(3) NOT NULL);
+CREATE INDEX "RateLimit_expiresAt_idx" ON "RateLimit"("expiresAt");
+CREATE TABLE "ApplicationChallenge" ("email" TEXT PRIMARY KEY, "codeHash" TEXT NOT NULL, "attempts" INTEGER NOT NULL DEFAULT 0, "expiresAt" TIMESTAMP(3) NOT NULL);
+CREATE INDEX "ApplicationChallenge_expiresAt_idx" ON "ApplicationChallenge"("expiresAt");
+CREATE TABLE "Subscription" ("organizationId" TEXT PRIMARY KEY REFERENCES "Organization"("id") ON DELETE CASCADE, "providerCustomerId" TEXT NOT NULL UNIQUE, "providerSubscriptionId" TEXT NOT NULL UNIQUE, "plan" TEXT NOT NULL, "status" TEXT NOT NULL, "currency" TEXT NOT NULL, "currentPeriodEnd" TIMESTAMP(3) NOT NULL, "updatedAt" TIMESTAMP(3) NOT NULL);
+CREATE TABLE "UsageCounter" ("organizationId" TEXT NOT NULL REFERENCES "Organization"("id") ON DELETE CASCADE, "period" TEXT NOT NULL, "aiScores" INTEGER NOT NULL DEFAULT 0, PRIMARY KEY ("organizationId", "period"));
+CREATE TABLE "BillingEvent" ("id" TEXT PRIMARY KEY, "processedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE "AgencyClient" ("id" TEXT PRIMARY KEY, "organizationId" TEXT NOT NULL REFERENCES "Organization"("id") ON DELETE CASCADE, "name" TEXT NOT NULL, "contactEmail" TEXT, "notes" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE INDEX "AgencyClient_organizationId_createdAt_idx" ON "AgencyClient"("organizationId", "createdAt");
+ALTER TABLE "Job" ADD COLUMN "clientId" TEXT REFERENCES "AgencyClient"("id") ON DELETE RESTRICT;
+CREATE INDEX "Candidate_organizationId_createdAt_idx" ON "Candidate"("organizationId", "createdAt");
+CREATE INDEX "JobApplication_jobId_createdAt_idx" ON "JobApplication"("jobId", "createdAt");
+CREATE INDEX "Interview_applicationId_idx" ON "Interview"("applicationId");
+CREATE INDEX "Interview_interviewerId_scheduledAt_idx" ON "Interview"("interviewerId", "scheduledAt");
+CREATE INDEX "Interview_scheduledAt_reminderSentAt_idx" ON "Interview"("scheduledAt", "reminderSentAt");
+CREATE INDEX "ActivityLog_applicationId_createdAt_idx" ON "ActivityLog"("applicationId", "createdAt");

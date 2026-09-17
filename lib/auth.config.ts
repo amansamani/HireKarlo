@@ -15,6 +15,7 @@ export const authConfig = {
       if (token && session.user) {
         // Replaced "as any" with a structural interface cast to appease the linter
         (session.user as { id: string }).id = token.id as string;
+        (session.user as { sessionVersion?: number }).sessionVersion = token.sessionVersion as number | undefined;
       }
       return session;
     },

@@ -1,0 +1,3 @@
+CREATE TABLE "BillingCheckout" ("organizationId" TEXT PRIMARY KEY REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE, "providerSessionId" TEXT NOT NULL UNIQUE, "url" TEXT NOT NULL, "expiresAt" TIMESTAMP(3) NOT NULL);
+CREATE TABLE "EmailOutbox" ("id" TEXT PRIMARY KEY, "dedupeKey" TEXT UNIQUE, "recipient" TEXT NOT NULL, "subject" TEXT NOT NULL, "html" TEXT NOT NULL, "attachments" JSONB, "attempts" INTEGER NOT NULL DEFAULT 0, "availableAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "leaseUntil" TIMESTAMP(3), "sentAt" TIMESTAMP(3), "failedAt" TIMESTAMP(3), "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE INDEX "EmailOutbox_sentAt_failedAt_availableAt_idx" ON "EmailOutbox"("sentAt", "failedAt", "availableAt");

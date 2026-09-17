@@ -145,7 +145,7 @@ const JobCard = memo(function JobCard({
               onClick={() => setIsConfirmingDelete(true)}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-all duration-200 hover:bg-destructive/10 hover:text-destructive"
               aria-label={`Delete ${job.title}`}
-              title="Delete job"
+              title="Archive job"
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -271,7 +271,7 @@ export default function JobsPoolClient({
           toast.error(res.error);
         } else {
           setJobs((current) => current.filter((j) => j.id !== job.id));
-          toast.success(res.success || "Job deleted.");
+          toast.success(res.success || "Job archived.");
           router.refresh();
         }
       });

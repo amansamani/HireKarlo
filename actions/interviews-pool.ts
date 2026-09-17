@@ -1,13 +1,15 @@
 "use server";
 
+import { canEditPipeline } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/require-auth";
 
 const PAGE_SIZE = 20;
 
 export async function getAllInterviewsAction(page: number = 1) {
+  page = Number.isSafeInteger(page) && page > 0 ? Math.min(page, 10000) : 1;
   const ctx = await requireOrg();
-  if (!ctx) return { error: "Unauthorized", interviews: [], hasMore: false };
+  if (!ctx || !canEditPipeline(ctx.role)) return { error: "Unauthorized", interviews: [], hasMore: false };
 
   try {
     const rows = await prisma.interview.findMany({

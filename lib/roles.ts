@@ -3,5 +3,5 @@ export function canManageTeam(role: string): boolean {
 }
 
 export function canEditPipeline(role: string): boolean {
-  return role !== "INTERVIEWER";
+  return role === "OWNER" || role === "ADMIN" || role === "RECRUITER";
 }

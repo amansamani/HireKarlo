@@ -13,9 +13,9 @@ export async function GET() {
 
   const state = crypto.randomUUID();
   const response = NextResponse.redirect(getGoogleAuthUrl(state));
-  response.cookies.set("google_oauth_state", state, {
+  response.cookies.set("google_oauth_state", JSON.stringify({ state, userId: ctx.userId, organizationId: ctx.organizationId }), {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     maxAge: 600, // 10 min — plenty for the consent screen round trip
     path: "/",

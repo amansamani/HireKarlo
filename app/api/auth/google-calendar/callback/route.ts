@@ -24,13 +24,14 @@ export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   const error = req.nextUrl.searchParams.get("error");
   const returnedState = req.nextUrl.searchParams.get("state");
-  const expectedState = req.cookies.get("google_oauth_state")?.value;
+  let expectedState: { state?: string; userId?: string; organizationId?: string } | null = null;
+  try { expectedState = JSON.parse(req.cookies.get("google_oauth_state")?.value || "null"); } catch { /* Invalid state is rejected below. */ }
 
   if (error || !code) {
     teamUrl.searchParams.set("googleError", "denied");
     return redirectTo(teamUrl);
   }
-  if (!expectedState || returnedState !== expectedState) {
+  if (!expectedState || returnedState !== expectedState.state || expectedState.userId !== ctx.userId || expectedState.organizationId !== ctx.organizationId) {
     teamUrl.searchParams.set("googleError", "state_mismatch");
     return redirectTo(teamUrl);
   }
@@ -55,8 +56,8 @@ export async function GET(req: NextRequest) {
 
     teamUrl.searchParams.set("googleConnected", "1");
     return redirectTo(teamUrl);
-  } catch (err) {
-    console.error("[google-calendar-callback] failed:", err);
+  } catch {
+    console.error("[google-calendar-callback] token exchange or persistence failed");
     teamUrl.searchParams.set("googleError", "failed");
     return redirectTo(teamUrl);
   }

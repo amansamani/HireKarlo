@@ -1,53 +1,33 @@
-# Architecture
+# Current architecture
 
-## Data Model
+Reviewed 16 September 2026. Historical case-study material describes an earlier prototype and should not be used as the current security or deployment specification.
 
-HireKarlo's core entities and relationships:
-User (recruiter)
-└── Job (1:many) — owns jobs via userId
-└── JobApplication (1:many)
-├── Candidate (many:1) — a candidate can apply to multiple jobs
-├── Interview (1:many)
-└── ActivityLog (1:many)
+## Application
 
-- `User` — a recruiter account. Created via `/register`, authenticated via NextAuth credentials provider (bcrypt-hashed passwords).
-- `Job` — a job posting, owned by exactly one `User` via `userId`. Public applicants view this via `/jobs/[id]` with no auth required.
-- `Candidate` — a person who applied. Not tied to a single job; the same candidate record is reused (via `connectOrCreate` on email) if they apply to multiple jobs from the same recruiter.
-- `JobApplication` — the join between a `Candidate` and a `Job`, carrying pipeline `stage` (enum: APPLIED → SCREENING → TECHNICAL → HR → OFFER / REJECTED → HIRED), plus AI-derived `matchScore` and `aiSummary`.
-- `Interview` — scheduled interview rounds tied to a `JobApplication`.
-- `ActivityLog` — an append-only audit trail of every pipeline action, scoped per application.
+Next.js 16 App Router and React 19, server actions and route handlers, PostgreSQL through Prisma 7 and the pg adapter. Authentication uses Auth.js credentials and JWTs. Server-side `requireAuth` verifies the user's session version and active organization membership. Proxy routing is an initial navigation check, not the authorization boundary.
 
-## Auth & Authorization
+## Tenant model
 
-Authentication uses NextAuth v5 with a credentials provider (email + bcrypt-hashed password). Sessions are JWT-based.
+Users belong to organizations through memberships. OWNER and ADMIN manage teams; RECRUITER works on hiring pipelines; INTERVIEWER has restricted assigned-interview access. Organization IDs come from authenticated context rather than client form authority. A membership-checked cookie selects the workspace.
 
-Because Next.js 16 runs middleware/proxy on the Edge Runtime — which can't run Node-only code like `bcrypt` or Prisma's Postgres driver — auth config is split into two files:
-- `lib/auth.config.ts` — Edge-safe config (session/JWT callbacks, no database code), used by `proxy.ts` for route protection.
-- `lib/auth.ts` — full config with the Prisma adapter and bcrypt-based credentials provider, used everywhere else (login, registration, server actions).
+Organizations own jobs, candidate pools, agency client records, subscriptions and usage counters. Applications join organization candidates to jobs and retain their own resume snapshot, privacy acknowledgement and notice version. Interviews and activity records belong to applications. Shared candidate records do not imply cross-organization identity or access.
 
-Authorization is enforced server-side on every server action, not just at the route level. Every action that reads or mutates a job, candidate, or application first re-verifies that `job.userId === session.user.id` before proceeding — a logged-in recruiter can never view or modify another recruiter's data by guessing an ID, even though the underlying database has no row-level security itself.
+## Candidate intake and documents
 
-## Public vs. Private Surface
+Public applicants authenticate their email using a shared database HMAC challenge. Atomic attempt counters protect verification, submission and status access. Application writes atomically claim the challenge and upload, enforce candidate limits and create the application. Newly uploaded PDF/DOCX resumes use authenticated Cloudinary raw storage. Authorized route handlers issue short-lived downloads; historical public URLs still require migration.
 
-- **Private** (`/dashboard/*`): gated by `proxy.ts`, requires an authenticated session.
-- **Public** (`/`, `/login`, `/register`, `/jobs/[id]`): explicitly excluded from the auth check. Candidates interact only with `/jobs/[id]`, which posts to an unauthenticated server action (`submitApplicationAction`) that still validates input server-side with Zod and checks for duplicate applications before writing.
+Parsing and Gemini scoring currently run synchronously during intake. A PostgreSQL credit counter bounds attempted AI work; a durable scoring worker remains required for stronger reliability and throughput. Provider results support human judgment.
 
-## Resume Parsing & AI Scoring
+## Plans and billing
 
-On submission, if a resume was uploaded:
-1. The file is validated server-side (MIME type allowlist, 5MB size cap) and saved with a randomly generated filename (prevents path traversal from a malicious original filename).
-2. Text is extracted server-side from the file on disk — `pdf-parse` for PDFs, `mammoth` for DOC/DOCX.
-3. The extracted text plus the job's title/description are sent to the Google Gemini API (free tier), prompted to return structured JSON: extracted skills, estimated years of experience, a 0–100 match score, and a short summary.
-4. The result is persisted directly on the `JobApplication` row (`matchScore`, `aiSummary`) so it's visible instantly in the recruiter's pipeline view — no separate fetch or polling needed.
+`lib/plans.ts` defines capacities and monthly INR/USD prices. A fourteen-day trial uses Growth capacity with 100 total AI attempts. Entitlement transactions lock the organization row before job, seat, candidate and credit checks. Interviewer seats are exempt; pending recruiter invitations reserve seats.
 
-If scoring fails for any reason (rate limit, malformed response, network error), the error is logged but the application submission still succeeds — a candidate is never blocked from applying because of an AI service hiccup.
+Optional Stripe checkout verifies server-configured recurring prices and reuses pending sessions. Signed webhook processing is idempotent, locks organization updates, and retrieves canonical provider state before updating subscriptions. Expired or past-due subscriptions cannot obtain active entitlements. Payment redirects do not grant access. Merchant approval, real payment validation and reconciliation are still release gates.
 
-## Notifications
+## Email and schedules
 
-Candidate-facing emails (stage changes, interview scheduling) are sent via Gmail SMTP through Nodemailer, triggered synchronously inside the same server action that performs the pipeline update — same fail-open pattern as resume scoring: if the email fails, the pipeline action itself still succeeds and the error is only logged.
+Email content is escaped and persisted to an outbox before delivery. Workers lease records, retry failures and retain dead letters. Delivery is at least once, and every business write is not yet atomically coupled to its outbox record. Cron routes require `CRON_SECRET`; cleanup removes expired challenges, request counters and old outbox records. Daily preview scheduling differs from the frequent commercial-hosting template.
 
-## Notable Trade-offs
+## Deployment and checks
 
-- **No role/permission tiers** — every registered user is a full recruiter with identical capabilities. A team/multi-recruiter model was considered but scoped out to keep the trial submission focused.
-- **Soft workflow, not hard delete** — candidates and applications are never destroyed through the UI; recruiters "reject" (a stage change) rather than delete, preserving history. This mirrors how production ATS tools like Greenhouse/Lever behave.
-- **Free-tier dependencies** — Gemini's free tier (1,500 requests/day) and Gmail SMTP were chosen deliberately to keep the project runnable with zero cost, at the trade-off of lower throughput than a paid provider.
+Environment-specific databases and credentials are required. Prisma generation runs during build; migrations are an explicit release step. CI uses disposable PostgreSQL rather than live customer secrets. Unit, database integration and Chromium browser checks cover selected critical behavior, not all production risks. See the production audit and runbook for unresolved parsing, calendar concurrency, monitoring and legal/data-handling requirements.

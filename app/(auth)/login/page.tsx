@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { KanbanSquare, Sparkles, MailCheck, ArrowRight } from "lucide-react";
 
-import { loginAction } from "@/actions/auth";
+import { loginAction, resendVerificationAction } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -36,7 +36,7 @@ export default function LoginPage() {
     if (params.get("verified")) {
       toast.success("Email verified — you can log in now.");
     } else if (params.get("verify_error") === "expired_token") {
-      toast.error("That verification link expired. Please register again.");
+      toast.error("That verification link expired. Request a new verification email.");
     } else if (params.get("verify_error")) {
       toast.error("That verification link is invalid.");
     }
@@ -119,7 +119,7 @@ export default function LoginPage() {
               </div>
 
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+                <form noValidate onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
                   <FormField
                     control={form.control}
                     name="email"
@@ -191,6 +191,11 @@ export default function LoginPage() {
                   </Button>
                 </form>
               </Form>
+              <button type="button" disabled={isLoading} className="block w-full text-sm text-primary disabled:opacity-50" onClick={async () => {
+                setIsLoading(true);
+                try { const result = await resendVerificationAction({ email: form.getValues("email") }); if (result.error) toast.error(result.error); else toast.success(result.success); }
+                finally { setIsLoading(false); }
+              }}>Resend verification email</button>
 
               <div className="relative flex items-center gap-4 py-2">
                 <div className="h-px flex-1 bg-border/60" />
@@ -211,7 +216,7 @@ export default function LoginPage() {
           </div>
 
           <p className="text-center text-xs text-muted-foreground">
-            Protected by enterprise-grade security
+            Secure sign-in for your hiring workspace
           </p>
         </div>
       </div>

@@ -1,3 +1,5 @@
+> Historical prototype case study. See architecture.md and PRODUCTION-AUDIT.md for the reviewed SaaS edition.
+
 # Case Study — HireKarlo
 
 ## Problem
@@ -79,4 +81,5 @@ i learned how the Next.js 16 App Router works under the hood, how to debug and f
 and how to integrate a third-party AI API into a real-world workflow.
 I also learned the importance of designing a data model first,
 enforcing server-side authorization, and debugging from evidence rather than guesses.  
+
 

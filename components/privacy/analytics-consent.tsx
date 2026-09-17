@@ -1,26 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { BarChart3, Check, Cookie, Settings2, X } from "lucide-react";
 import { Analytics } from "@vercel/analytics/next";
 
 const CONSENT_KEY = "hirekarlo-analytics-consent";
 type Consent = "accepted" | "rejected" | null;
+const consentEvent = "hirekarlo-consent-changed";
+function subscribe(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(consentEvent, callback);
+  return () => { window.removeEventListener("storage", callback); window.removeEventListener(consentEvent, callback); };
+}
+function readConsent(): Consent {
+  try { const stored = window.localStorage.getItem(CONSENT_KEY); return stored === "accepted" || stored === "rejected" ? stored : null; }
+  catch { return null; }
+}
+const subscribeLoaded = () => () => {};
 
 export function AnalyticsConsent() {
-  const [consent, setConsent] = useState<Consent>(null);
-  const [loaded, setLoaded] = useState(false);
+  const storedConsent = useSyncExternalStore(subscribe, readConsent, () => null);
+  const [localConsent, setLocalConsent] = useState<Consent>(null);
+  const consent = localConsent ?? storedConsent;
+  const loaded = useSyncExternalStore(subscribeLoaded, () => true, () => false);
   const [manageOpen, setManageOpen] = useState(false);
-
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(CONSENT_KEY);
-      if (stored === "accepted" || stored === "rejected") setConsent(stored);
-    } finally {
-      setLoaded(true);
-    }
-  }, []);
 
   function save(next: Exclude<Consent, null>) {
     try {
@@ -28,7 +32,8 @@ export function AnalyticsConsent() {
     } catch {
       // Privacy mode or browser policy may block local storage.
     }
-    setConsent(next);
+    setLocalConsent(next);
+    window.dispatchEvent(new Event(consentEvent));
     setManageOpen(false);
   }
 

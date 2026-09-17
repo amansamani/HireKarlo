@@ -6,7 +6,10 @@ import { canManageTeam } from "@/lib/roles";
 import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { sendEmail } from "@/lib/send-email";
+import { escapeHtml } from "@/lib/html";
 import { z } from "zod";
+import { lockOrganization } from "@/lib/entitlements";
+import { cookies } from "next/headers";
 
 const InviteSchema = z.object({
   email: z.string().trim().email().transform((value) => value.toLowerCase()),
@@ -39,7 +42,7 @@ export async function getTeamAction() {
 
     const ratingStats = await prisma.interview.groupBy({
       by: ["interviewerId"],
-      where: { interviewerId: { in: members.map((m) => m.userId) }, interviewerRating: { not: null } },
+      where: { application: { job: { organizationId: ctx.organizationId } }, interviewerId: { in: members.map((m) => m.userId) }, interviewerRating: { not: null } },
       _avg: { interviewerRating: true },
       _count: { interviewerRating: true },
     });
@@ -114,7 +117,14 @@ export async function inviteTeamMemberAction(rawData: unknown) {
     const org = await prisma.organization.findUnique({ where: { id: ctx.organizationId }, select: { name: true } });
     const token = randomBytes(24).toString("hex");
 
-    await prisma.teamInvite.upsert({
+    await prisma.$transaction(async tx => {
+    const plan = await lockOrganization(tx, ctx.organizationId);
+    if (parsed.data.role !== "INTERVIEWER") {
+      const seats = await tx.membership.count({ where: { organizationId: ctx.organizationId, role: { not: "INTERVIEWER" } } });
+      const pending = await tx.teamInvite.count({ where: { organizationId: ctx.organizationId, email: { not: parsed.data.email }, role: { not: "INTERVIEWER" }, expires: { gt: new Date() } } });
+      if (seats + pending >= plan.limits.seats) throw new Error("Recruiter seat limit reached. Visit Billing.");
+    }
+    await tx.teamInvite.upsert({
       where: { organizationId_email: { organizationId: ctx.organizationId, email: parsed.data.email } },
       create: {
         organizationId: ctx.organizationId,
@@ -125,6 +135,7 @@ export async function inviteTeamMemberAction(rawData: unknown) {
       },
       update: { role: parsed.data.role, token, expires: new Date(Date.now() + INVITE_TTL_MS) },
     });
+    });
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const acceptUrl = `${baseUrl}/accept-invite?token=${token}`;
@@ -133,7 +144,7 @@ export async function inviteTeamMemberAction(rawData: unknown) {
       `You've been invited to join ${org?.name ?? "a team"} on HireKarlo`,
       `<div style="font-family: sans-serif; max-width: 480px; margin: auto; padding: 24px;">
         <h2>You're invited</h2>
-        <p>You've been invited to join <strong>${org?.name}</strong> on HireKarlo as ${parsed.data.role.toLowerCase()}.</p>
+        <p>You've been invited to join <strong>${escapeHtml(org?.name ?? "Your team")}</strong> on HireKarlo as ${parsed.data.role.toLowerCase()}.</p>
         <p><a href="${acceptUrl}" style="display:inline-block;background:#18181b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;">Accept invite</a></p>
         <p style="color:#a1a1aa;font-size:12px;">This link expires in 7 days.</p>
       </div>`
@@ -143,6 +154,7 @@ export async function inviteTeamMemberAction(rawData: unknown) {
     return { success: "Invite sent." };
   } catch (error) {
     console.error("[inviteTeamMemberAction] failed:", error);
+    if (error instanceof Error && /limit reached|subscription has ended/.test(error.message)) return { error: error.message };
     return { error: "Failed to send invite." };
   }
 }
@@ -170,12 +182,21 @@ export async function acceptInviteAction(token: string) {
       return { error: "You're already a member of this team." };
     }
 
-    await prisma.membership.upsert({
+    await prisma.$transaction(async tx => {
+    const plan = await lockOrganization(tx, invite.organizationId);
+    const consumed = await tx.teamInvite.deleteMany({ where: { token, expires: { gt: new Date() } } });
+    if (consumed.count !== 1) throw new Error("Invite expired or already used");
+    if (invite.role !== "INTERVIEWER") {
+      const seats = await tx.membership.count({ where: { organizationId: invite.organizationId, role: { not: "INTERVIEWER" } } });
+      if (seats >= plan.limits.seats) throw new Error("Recruiter seat limit reached");
+    }
+    await tx.membership.upsert({
       where: { organizationId_userId: { organizationId: invite.organizationId, userId } },
       create: { organizationId: invite.organizationId, userId, role: invite.role },
       update: { role: invite.role },
     });
-    await prisma.teamInvite.delete({ where: { token } });
+    });
+    (await cookies()).set("hirekarlo-organization", invite.organizationId, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 30 });
 
     return { success: "You've joined the team!" };
   } catch (error) {
@@ -194,7 +215,10 @@ export async function removeMemberAction(membershipId: string) {
     if (!target || target.organizationId !== ctx.organizationId) return { error: "Member not found." };
     if (target.role === "OWNER") return { error: "Can't remove the team owner." };
 
-    await prisma.membership.delete({ where: { id: membershipId } });
+    await prisma.$transaction(async tx => {
+      await tx.membership.delete({ where: { id: membershipId } });
+      await tx.interview.updateMany({ where: { interviewerId: target.userId, application: { job: { organizationId: ctx.organizationId } } }, data: { interviewerId: null } });
+    });
     revalidatePath("/dashboard/team");
     return { success: "Member removed." };
   } catch (error) {

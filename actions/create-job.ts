@@ -1,5 +1,6 @@
 "use server";
 
+import { lockOrganization } from "@/lib/entitlements";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/require-auth";
@@ -11,8 +12,9 @@ const CreateJobSchema = z.object({
   department: z.string().trim().min(1, "Department is required").max(50),
   location: z.string().trim().min(1, "Location is required").max(100),
   type: z.string().trim().default("Full-time"),
-  description: z.string().trim().min(10, "Description must be at least 10 characters"),
-  interviewRounds: z.array(z.string().trim()).optional(),
+  description: z.string().trim().min(10, "Description must be at least 10 characters").max(20000),
+  interviewRounds: z.array(z.string().trim().min(1).max(60)).max(15).optional(),
+  clientId: z.string().min(1).optional(),
 });
 
 export async function createJobAction(rawData: unknown) {
@@ -37,9 +39,17 @@ export async function createJobAction(rawData: unknown) {
 );
 
   try {
-    console.error("[createJobAction] about to insert:", JSON.stringify({ ctx, data, interviewRounds }));
-    const newJob = await prisma.job.create({
+    const newJob = await prisma.$transaction(async tx => {
+      const plan = await lockOrganization(tx, ctx.organizationId);
+      const jobs = await tx.job.count({ where: { organizationId: ctx.organizationId, status: "OPEN" } });
+      if (jobs >= plan.limits.jobs) throw new Error("Active job limit reached. Visit Billing.");
+      if (data.clientId) {
+        const client = await tx.agencyClient.findFirst({ where: { id: data.clientId, organizationId: ctx.organizationId } });
+        if (!client) throw new Error("Client not found");
+      }
+      return tx.job.create({
       data: {
+        clientId: data.clientId,
         userId: ctx.userId,
         organizationId: ctx.organizationId,
         title: data.title,
@@ -50,6 +60,7 @@ export async function createJobAction(rawData: unknown) {
         status: "OPEN",
         interviewRounds,
       },
+      });
     });
 
     revalidatePath("/dashboard/jobs");
@@ -58,6 +69,7 @@ export async function createJobAction(rawData: unknown) {
     return { success: "Job position created successfully!", jobId: newJob.id };
   } catch (error) {
     console.error("[createJobAction] Job creation error:", error);
+    if (error instanceof Error && /limit reached|subscription has ended|Client not found/.test(error.message)) return { error: error.message };
     const detail =
       process.env.NODE_ENV !== "production" && error instanceof Error
         ? `Failed to create job position: ${error.message}`

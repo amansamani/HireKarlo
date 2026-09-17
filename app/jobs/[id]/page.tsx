@@ -7,7 +7,7 @@ export default async function PublicApplyPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const job = await prisma.job.findUnique({ where: { id } });
+  const job = await prisma.job.findUnique({ where: { id }, select: { id: true, title: true, department: true, location: true, type: true, description: true, status: true } });
 
   if (!job || job.status !== "OPEN") {
     return (

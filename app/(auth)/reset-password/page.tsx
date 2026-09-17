@@ -3,7 +3,7 @@
 import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -47,7 +47,7 @@ function ResetForm() {
     resolver: zodResolver(Schema),
     defaultValues: { password: "", confirm: "" },
   });
-  const password = form.watch("password");
+  const password = useWatch({ control: form.control, name: "password" });
 
   async function onSubmit(values: z.infer<typeof Schema>) {
     setIsLoading(true);

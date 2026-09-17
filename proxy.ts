@@ -3,7 +3,7 @@ import { authConfig } from "@/lib/auth.config";
 
 const { auth } = NextAuth(authConfig);
 
-const PUBLIC_PATHS = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/track"];
+const PUBLIC_PATHS = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/track", "/privacy", "/terms", "/cookies", "/pricing", "/rate-interview", "/accept-invite", "/robots.txt", "/sitemap.xml", "/opengraph-image"];
 
 export const proxy = auth((req) => {
   
@@ -13,9 +13,8 @@ export const proxy = auth((req) => {
   const isPublicPath = PUBLIC_PATHS.includes(path);
 
   if (isAuthPage) {
-    if (isLoggedIn) {
-      return Response.redirect(new URL("/dashboard", req.nextUrl));
-    }
+    // A cryptographically valid JWT may have been revoked by a password reset.
+    // Let users sign in again instead of cycling login -> dashboard -> login.
     return null;
   }
 

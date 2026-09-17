@@ -40,6 +40,7 @@ model User {
   memberships   Membership[]
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
+  sessionVersion Int           @default(0)
 }
 
 model Account {
@@ -82,6 +83,11 @@ model Organization {
   name        String
   ownerId     String
   createdAt   DateTime     @default(now())
+  trialEndsAt DateTime    @default(dbgenerated("(CURRENT_TIMESTAMP + '14 days'::interval)"))
+  subscription Subscription?
+  clients     AgencyClient[]
+  usageCounters UsageCounter[]
+  checkout BillingCheckout?
 
   googleCalendarEmail String?
   googleRefreshToken  String?
@@ -157,6 +163,7 @@ model Candidate {
   organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([email, organizationId])
+  @@index([organizationId, createdAt])
 }
 
 model Job {
@@ -169,6 +176,8 @@ model Job {
   description  String   @db.Text
   status       String   @default("OPEN") // OPEN, CLOSED, FILLED
   interviewRounds String[] @default([])
+  clientId     String?
+  client       AgencyClient? @relation(fields: [clientId], references: [id], onDelete: Restrict)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -199,6 +208,9 @@ model JobApplication {
 
   matchScore        Int?
   aiSummary         String?
+  resumeUrl         String?
+  privacyAcknowledgedAt DateTime?
+  privacyNoticeVersion String?
   
   interviews        Interview[]
   activityLogs      ActivityLog[]
@@ -207,6 +219,7 @@ model JobApplication {
   updatedAt         DateTime         @updatedAt
 
   @@unique([candidateId, jobId])
+  @@index([jobId, createdAt])
 }
 
 model Interview {
@@ -229,6 +242,9 @@ model Interview {
 
   application JobApplication @relation(fields: [applicationId], references: [id])
   interviewerUser User?      @relation("InterviewerAssignments", fields: [interviewerId], references: [id])  // ← ADD THIS LINE
+  @@index([applicationId])
+  @@index([interviewerId, scheduledAt])
+  @@index([scheduledAt, reminderSentAt])
 }
 model ActivityLog {
   id            String          @id @default(cuid())
@@ -241,4 +257,81 @@ model ActivityLog {
   details       String?
   
   createdAt     DateTime        @default(now())
+  @@index([applicationId, createdAt])
+}
+
+model RateLimit {
+  key String @id
+  count Int @default(0)
+  expiresAt DateTime
+  @@index([expiresAt])
+}
+
+model ApplicationChallenge {
+  email String @id
+  codeHash String
+  attempts Int @default(0)
+  expiresAt DateTime
+  @@index([expiresAt])
+}
+
+model Subscription {
+  organizationId String @id
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  providerCustomerId String @unique
+  providerSubscriptionId String @unique
+  plan String
+  status String
+  currency String
+  currentPeriodEnd DateTime
+  updatedAt DateTime @updatedAt
+}
+
+model UsageCounter {
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  period String
+  aiScores Int @default(0)
+  @@id([organizationId, period])
+}
+
+model BillingCheckout {
+  organizationId String @id
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  providerSessionId String @unique
+  url String
+  expiresAt DateTime
+}
+
+model EmailOutbox {
+  id String @id @default(cuid())
+  dedupeKey String? @unique
+  recipient String
+  subject String
+  html String @db.Text
+  attachments Json?
+  attempts Int @default(0)
+  availableAt DateTime @default(now())
+  leaseUntil DateTime?
+  sentAt DateTime?
+  failedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([sentAt, failedAt, availableAt])
+}
+
+model BillingEvent {
+  id String @id
+  processedAt DateTime @default(now())
+}
+
+model AgencyClient {
+  id String @id @default(cuid())
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name String
+  contactEmail String?
+  notes String? @db.Text
+  jobs Job[]
+  createdAt DateTime @default(now())
+  @@index([organizationId, createdAt])
 }

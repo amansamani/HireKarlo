@@ -1,6 +1,7 @@
 {
   "crons": [
     { "path": "/api/cron/interview-reminders", "schedule": "30 2 * * *" },
+    { "path": "/api/cron/email-outbox", "schedule": "0 4 * * *" },
     { "path": "/api/cron/resume-cleanup", "schedule": "0 3 * * *" }
   ]
 }

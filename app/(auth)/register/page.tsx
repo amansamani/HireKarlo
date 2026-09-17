@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -79,7 +79,7 @@ export default function RegisterPage() {
     defaultValues: { name: "", email: "", password: "" },
   });
 
-  const password = form.watch("password");
+  const password = useWatch({ control: form.control, name: "password" });
 
   async function onSubmit(values: z.infer<typeof RegisterSchema>) {
     setIsLoading(true);

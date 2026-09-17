@@ -1,11 +1,12 @@
 "use server";
 
+import { canEditPipeline } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/require-auth";
 
 export async function getRecruiterAnalyticsAction() {
   const ctx = await requireOrg();
-  if (!ctx) return { error: "Unauthorized", stats: null };
+  if (!ctx || !canEditPipeline(ctx.role)) return { error: "Unauthorized", stats: null };
 
   try {
     const [totalJobs, applicationGroups] = await Promise.all([
@@ -37,7 +38,7 @@ export async function getRecruiterAnalyticsAction() {
 /* ✅ Live notification feed built from real data — no schema change needed */
 export async function getNotificationsAction() {
   const ctx = await requireOrg();
-  if (!ctx) return { error: "Unauthorized", notifications: [], pendingInvites: 0 };
+  if (!ctx || !canEditPipeline(ctx.role)) return { error: "Unauthorized", notifications: [], pendingInvites: 0 };
 
   const now = new Date();
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);

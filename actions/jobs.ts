@@ -1,11 +1,12 @@
 "use server";
 
+import { canEditPipeline } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/require-auth";
 
 export async function getJobsAction() {
   const ctx = await requireOrg();
-  if (!ctx) return { error: "Unauthorized", jobs: [] };
+  if (!ctx || !canEditPipeline(ctx.role)) return { error: "Unauthorized", jobs: [] };
 
   try {
     const jobs = await prisma.job.findMany({

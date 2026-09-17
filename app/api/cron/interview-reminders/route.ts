@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
           interview.interviewer,
           interview.scheduledAt
         );
-        await sendEmail(interview.application.candidate.email, subject, html);
+        await sendEmail(interview.application.candidate.email, subject, html, undefined, `interview-reminder:${interview.id}`);
         await prisma.interview.update({ where: { id: interview.id }, data: { reminderSentAt: new Date() } });
         sent++;
       } catch (err) {

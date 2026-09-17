@@ -1,5 +1,6 @@
 "use server";
 
+import { reserveAiScore, lockOrganization } from "@/lib/entitlements";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { randomInt } from "crypto";
@@ -8,55 +9,27 @@ import { scoreResumeAgainstJob } from "@/lib/score-resume";
 import { sendEmail } from "@/lib/send-email";
 import { applicationOtpEmail } from "@/lib/email-templates";
 
+import { normalizeEmail, hashApplicationCode, checkApplicationCode } from "@/lib/application-otp";
+import { allowAuthRequest } from "@/lib/rate-limit";
+
 const OTP_TTL_MS = 10 * 60 * 1000;
-const otpIdentifier = (email: string) => `apply-otp:${email.toLowerCase().trim()}`;
-
-const EmailSchema = z.string().trim().email("Please enter a valid email address.");
-
-const SEND_WINDOW_MS = 10 * 60 * 1000;
-const SEND_MAX = 3;
-const sendAttempts = new Map<string, number[]>();
-
-const VERIFY_MAX_ATTEMPTS = 5;
-const verifyAttempts = new Map<string, number>();
-
-function isSendRateLimited(identifier: string): boolean {
-  const now = Date.now();
-  const attempts = (sendAttempts.get(identifier) ?? []).filter((t) => now - t < SEND_WINDOW_MS);
-  attempts.push(now);
-  sendAttempts.set(identifier, attempts);
-  return attempts.length > SEND_MAX;
-}
+const EmailSchema = z.string().trim().email("Please enter a valid email address.").transform(normalizeEmail);
 
 export async function sendApplicationOtpAction(email: string) {
   const parsed = EmailSchema.safeParse(email);
   if (!parsed.success) return { error: "Please enter a valid email address." };
 
-  const identifier = otpIdentifier(parsed.data);
-
-  if (isSendRateLimited(identifier)) {
+  if (!(await allowAuthRequest("application-otp", parsed.data, 3))) {
     return { error: "Too many codes requested for this email. Try again in 10 minutes." };
   }
 
   try {
-    await prisma.verificationToken.deleteMany({ where: { identifier } });
-    verifyAttempts.delete(identifier);
-
-    let otp = "";
-    let created = false;
-    for (let attempt = 0; attempt < 5 && !created; attempt++) {
-      otp = randomInt(100000, 1000000).toString();
-      try {
-        await prisma.verificationToken.create({
-          data: { identifier, token: otp, expires: new Date(Date.now() + OTP_TTL_MS) },
-        });
-        created = true;
-      } catch (createError) {
-        const prismaError = createError as { code?: string };
-        if (prismaError?.code !== "P2002") throw createError;
-      }
-    }
-    if (!created) return { error: "Couldn't generate a code, please try again." };
+    const otp = randomInt(100000, 1000000).toString();
+    await prisma.applicationChallenge.upsert({
+      where: { email: parsed.data },
+      create: { email: parsed.data, codeHash: hashApplicationCode(parsed.data, otp), expiresAt: new Date(Date.now() + OTP_TTL_MS) },
+      update: { codeHash: hashApplicationCode(parsed.data, otp), attempts: 0, expiresAt: new Date(Date.now() + OTP_TTL_MS) },
+    });
 
     const { subject, html } = applicationOtpEmail(otp, "this role");
     await sendEmail(parsed.data, subject, html);
@@ -73,23 +46,8 @@ export async function verifyApplicationOtpAction(email: string, otp: string) {
   if (!parsed.success) return { error: "Please enter a valid email address." };
   if (!otp || otp.trim().length !== 6) return { error: "Enter the 6-digit code." };
 
-  const identifier = otpIdentifier(parsed.data);
-  const attempts = verifyAttempts.get(identifier) ?? 0;
-  if (attempts >= VERIFY_MAX_ATTEMPTS) {
-    return { error: "Too many incorrect attempts. Request a new code." };
-  }
-
   try {
-    const record = await prisma.verificationToken.findFirst({
-      where: { identifier, token: otp.trim() },
-    });
-
-    if (!record || record.expires < new Date()) {
-      verifyAttempts.set(identifier, attempts + 1);
-      return { error: "That code is invalid or expired. Request a new one." };
-    }
-
-    verifyAttempts.delete(identifier);
+    if (!(await checkApplicationCode(parsed.data, otp.trim()))) return { error: "That code is invalid, expired, or has too many attempts." };
     return { success: "Email verified." };
   } catch (error) {
     console.error("[verifyApplicationOtpAction] failed:", error);
@@ -99,10 +57,11 @@ export async function verifyApplicationOtpAction(email: string, otp: string) {
 
 const ApplicationSchema = z.object({
   jobId: z.string().min(1, "Job ID is required"),
-  candidateName: z.string().min(2, "Name must be at least 2 characters"),
-  candidateEmail: z.string().email("Invalid email address"),
+  candidateName: z.string().trim().max(120).min(2, "Name must be at least 2 characters"),
+  candidateEmail: z.string().trim().email("Invalid email address").transform(normalizeEmail),
   resumeUploadId: z.string().uuid("Invalid resume upload."),
   otp: z.string().length(6, "Missing email verification code."),
+  privacyAcknowledged: z.literal(true, { error: "Please acknowledge the privacy notice." }),
 });
 
 export async function submitApplicationAction(values: z.infer<typeof ApplicationSchema>) {
@@ -115,17 +74,9 @@ export async function submitApplicationAction(values: z.infer<typeof Application
   const { jobId, candidateName, candidateEmail, resumeUploadId, otp } = validatedFields.data;
 
   try {
-    const identifier = otpIdentifier(candidateEmail);
-    const tokenRecord = await prisma.verificationToken.findFirst({ where: { identifier, token: otp } });
-
-    if (!tokenRecord || tokenRecord.expires < new Date()) {
-      return { error: "Please verify your email again — the code expired or wasn't found." };
+    if (!(await checkApplicationCode(candidateEmail, otp))) {
+      return { error: "Please request a new email code: this one is invalid, expired, or used." };
     }
-
-    await prisma.verificationToken.delete({
-      where: { identifier_token: { identifier, token: otp } },
-    });
-    verifyAttempts.delete(identifier);
 
     const job = await prisma.job.findUnique({ where: { id: jobId } });
 
@@ -157,26 +108,15 @@ export async function submitApplicationAction(values: z.infer<typeof Application
       return { error: "You have already submitted an application for this job opening." };
     }
 
-    const claimedUpload = await prisma.resumeUpload.updateMany({
-      where: {
-        id: upload.id,
-        consumedAt: null,
-      },
-      data: { consumedAt: new Date() },
-    });
-
-    if (claimedUpload.count !== 1) {
-      return { error: "This resume upload has already been used. Please upload it again." };
-    }
-
     const resumeUrl = upload.url;
 
     let matchScore: number | null = null;
     let aiSummary: string | null = null;
 
-    if (resumeUrl) {
+    if (resumeUrl && process.env.GEMINI_API_KEY) {
       try {
         const resumeText = await extractResumeText(resumeUrl);
+        if (!resumeText.trim() || !(await reserveAiScore(job.organizationId))) throw new Error("No readable text or AI allowance exhausted");
         const score = await scoreResumeAgainstJob(resumeText, job.title, job.description ?? "");
         if (score) {
           matchScore = score.matchScore;
@@ -187,7 +127,17 @@ export async function submitApplicationAction(values: z.infer<typeof Application
       }
     }
 
-    const candidate = await prisma.candidate.upsert({
+    await prisma.$transaction(async tx => {
+    const plan = await lockOrganization(tx, job.organizationId);
+    const currentJob = await tx.job.findUnique({ where: { id: jobId }, select: { status: true } });
+    if (currentJob?.status !== "OPEN") throw new Error("Job is closed");
+    const consumedCode = await tx.applicationChallenge.deleteMany({ where: { email: candidateEmail, codeHash: hashApplicationCode(candidateEmail, otp), attempts: { lte: 5 }, expiresAt: { gt: new Date() } } });
+    if (consumedCode.count !== 1) throw new Error("Email code expired or already used");
+    const claimedUpload = await tx.resumeUpload.updateMany({ where: { id: upload.id, jobId, consumedAt: null, expiresAt: { gt: new Date() } }, data: { consumedAt: new Date() } });
+    if (claimedUpload.count !== 1) throw new Error("Resume upload expired or already used");
+    const existing = await tx.candidate.findUnique({ where: { email_organizationId: { email: candidateEmail, organizationId: job.organizationId } } });
+    if (!existing && await tx.candidate.count({ where: { organizationId: job.organizationId } }) >= plan.limits.candidates) throw new Error("Candidate storage limit reached");
+    const candidate = await tx.candidate.upsert({
       where: { email_organizationId: { email: candidateEmail, organizationId: job.organizationId } },
       create: {
         fullName: candidateName,
@@ -203,11 +153,14 @@ export async function submitApplicationAction(values: z.infer<typeof Application
       },
     });
 
-    await prisma.jobApplication.create({
+    await tx.jobApplication.create({
       data: {
         stage: "APPLIED",
         matchScore,
         aiSummary,
+        resumeUrl,
+        privacyAcknowledgedAt: new Date(),
+        privacyNoticeVersion: "2026-09-16",
         job: {
           connect: { id: jobId }
         },
@@ -217,6 +170,7 @@ export async function submitApplicationAction(values: z.infer<typeof Application
       },
     });
 
+    });
     return { success: "Your application has been submitted successfully!" };
   } catch (error) {
     console.error("Public submission error:", error);
@@ -229,16 +183,10 @@ export async function getApplicationStatusAction(email: string, otp: string) {
   if (!parsed.success) return { error: "Please enter a valid email address." };
   if (!otp || otp.trim().length !== 6) return { error: "Enter the 6-digit code." };
 
-  const identifier = otpIdentifier(parsed.data);
-
   try {
-    const record = await prisma.verificationToken.findFirst({ where: { identifier, token: otp.trim() } });
-    if (!record || record.expires < new Date()) {
-      return { error: "That code is invalid or expired. Request a new one." };
+    if (!(await checkApplicationCode(parsed.data, otp.trim(), true))) {
+      return { error: "That code is invalid, expired, or used." };
     }
-    await prisma.verificationToken
-      .delete({ where: { identifier_token: { identifier, token: otp.trim() } } })
-      .catch(() => {});
 
     const applications = await prisma.jobApplication.findMany({
       where: { candidate: { email: parsed.data } },

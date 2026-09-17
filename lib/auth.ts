@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { authConfig } from "@/lib/auth.config";
+import { normalizeEmail } from "@/lib/application-otp";
+import { allowAuthRequest } from "@/lib/rate-limit";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -23,7 +25,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!parsedCredentials.success) return null;
 
-        const { email, password } = parsedCredentials.data;
+        const { password } = parsedCredentials.data;
+        const email = normalizeEmail(parsedCredentials.data.email);
+        if (!(await allowAuthRequest("authorize", email))) return null;
         const user = await prisma.user.findUnique({ where: { email } });
 
         if (!user || !user.password) return null;
@@ -37,4 +41,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   session: { strategy: "jwt" },
+  callbacks: {
+    ...authConfig.callbacks,
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        const current = await prisma.user.findUnique({ where: { id: user.id }, select: { sessionVersion: true } });
+        token.sessionVersion = current?.sessionVersion;
+      }
+      return token;
+    },
+  },
 });

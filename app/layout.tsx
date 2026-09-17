@@ -10,7 +10,7 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 const pinyonScript = Pinyon_Script({ subsets: ["latin"], weight: "400", variable: "--font-script" });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://HireKarlo.amansamani.me"),
+  metadataBase: new URL((process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000")),
   title: {
     default: "HireKarlo — AI-powered hiring pipeline",
     template: "%s | HireKarlo",
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     title: "HireKarlo — AI-powered hiring pipeline",
     description:
       "Post a job, share one link, and let HireKarlo parse and score every applicant's resume automatically.",
-    url: "https://HireKarlo.amansamani.me",
+    url: (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
     siteName: "HireKarlo",
     type: "website",
     images: [

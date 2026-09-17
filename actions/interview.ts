@@ -10,6 +10,7 @@ import { createMeetEvent, deleteMeetEvent } from "@/lib/google-calendar";
 import { canEditPipeline } from "@/lib/roles";
 import { randomBytes } from "crypto";
 import { decryptSecret } from "@/lib/encrypted-secret";
+import { escapeHtml } from "@/lib/html";
 import { z } from "zod";
 
 const ScheduleInterviewSchema = z.object({
@@ -44,7 +45,7 @@ export async function scheduleInterviewAction(data: z.infer<typeof ScheduleInter
         select: {
           stage: true,
           candidate: { select: { fullName: true, email: true } },
-          job: { select: { organizationId: true, title: true } },
+          job: { select: { organizationId: true, title: true, interviewRounds: true } },
         },
       }),
       prisma.organization.findUnique({
@@ -55,6 +56,10 @@ export async function scheduleInterviewAction(data: z.infer<typeof ScheduleInter
 
     if (!currentApp) return { error: "Application not found." };
     if (currentApp.job.organizationId !== ctx.organizationId) return { error: "Unauthorized" };
+    const allowedRounds = currentApp.job.interviewRounds.length ? currentApp.job.interviewRounds : ["Interview", "TECHNICAL", "HR"];
+    if (!allowedRounds.includes(data.targetStage)) return { error: "Unknown interview round." };
+    try { new Intl.DateTimeFormat("en", { timeZone: data.timezone || "UTC" }); }
+    catch { return { error: "Invalid timezone." }; }
 
     // If a team member was picked (not free text), make sure they're actually
     // on this org — stops assigning someone else's account by a stale/forged id.
@@ -68,11 +73,11 @@ export async function scheduleInterviewAction(data: z.infer<typeof ScheduleInter
       interviewerEmail = isMember.user.email;
     }
 
-    const scanStart = new Date(start.getTime() - 4 * 60 * 60_000);
-    const scanEnd = new Date(end.getTime() + 4 * 60 * 60_000);
+    const scanStart = new Date(start.getTime() - 8 * 60 * 60_000);
+    const scanEnd = new Date(end.getTime() + 8 * 60 * 60_000);
     const nearby = await prisma.interview.findMany({
       where: {
-        interviewer: data.interviewer,
+        ...(data.interviewerId ? { interviewerId: data.interviewerId } : { interviewer: data.interviewer }),
         application: { job: { organizationId: ctx.organizationId } },
         scheduledAt: { gte: scanStart, lte: scanEnd },
       },
@@ -168,7 +173,7 @@ export async function scheduleInterviewAction(data: z.infer<typeof ScheduleInter
       location: meetingLink ?? undefined,
     });
 
-    sendEmail(currentApp.candidate.email, subject, html, [
+    await sendEmail(currentApp.candidate.email, subject, html, [
       { filename: "interview.ics", content: ics, contentType: "text/calendar; method=PUBLISH" },
     ]).catch((emailError) => {
       console.error("[scheduleInterviewAction] interview scheduled OK but notification email failed:", emailError);
@@ -191,6 +196,9 @@ export async function submitInterviewFeedbackAction(data: {
   rating: number;
   feedback: string;
 }) {
+  const parsed = z.object({ interviewId: z.string().min(1), result: z.enum(["PASSED", "FAILED", "PENDING"]), rating: z.number().int().min(1).max(5), feedback: z.string().trim().max(10000) }).safeParse(data);
+  if (!parsed.success) return { error: "Invalid feedback." };
+  data = parsed.data;
   const userId = await requireAuth();
   if (!userId) return { error: "Unauthorized" };
   if (data.rating < 1 || data.rating > 5) return { error: "Rating must be between 1 and 5." };
@@ -211,14 +219,11 @@ export async function submitInterviewFeedbackAction(data: {
     // to (works across every org you're linked to), or you're on the org that
     // owns this job (recruiters/admins entering feedback on someone's behalf,
     // or legacy interviews with no linked account).
-    const isAssignedInterviewer = interview.interviewerId === userId;
-    if (!isAssignedInterviewer) {
-      const membership = await prisma.membership.findFirst({
+    const membership = await prisma.membership.findFirst({
         where: { userId, organizationId: interview.application.job.organizationId },
-        select: { id: true },
+        select: { role: true },
       });
-      if (!membership) return { error: "Interview not found or unauthorized." };
-    }
+    if (!membership || (!canEditPipeline(membership.role) && interview.interviewerId !== userId)) return { error: "Interview not found or unauthorized." };
 
     await prisma.$transaction([
       prisma.interview.update({
@@ -249,7 +254,7 @@ export async function getMyAssignedInterviewsAction() {
 
   try {
     const interviews = await prisma.interview.findMany({
-      where: { interviewerId: userId },
+      where: { interviewerId: userId, application: { job: { organization: { memberships: { some: { userId } } } } } },
       select: {
         id: true,
         round: true,
@@ -382,7 +387,7 @@ export async function cancelInterviewAction(interviewId: string) {
       interview.round,
       interview.scheduledAt
     );
-    sendEmail(interview.application.candidate.email, subject, html).catch((emailError) => {
+    await sendEmail(interview.application.candidate.email, subject, html).catch((emailError) => {
       console.error("[cancelInterviewAction] interview cancelled OK but notification email failed:", emailError);
     });
 
@@ -434,8 +439,8 @@ export async function sendInterviewFeedbackLinkAction(interviewId: string) {
       `How was your ${interview.round} interview at ${interview.application.job.title}?`,
       `<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;">
         <h2>We'd love your feedback</h2>
-        <p>Hi ${interview.application.candidate.fullName}, thanks for interviewing with us.
-        Please rate your experience with <strong>${interview.interviewer}</strong> — it takes 5 seconds and is completely confidential.</p>
+        <p>Hi ${escapeHtml(interview.application.candidate.fullName)}, thanks for interviewing with us.
+        Please rate your experience with <strong>${escapeHtml(interview.interviewer)}</strong> — it takes 5 seconds and is completely confidential.</p>
         <p><a href="${url}" style="display:inline-block;background:#3b82f6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Rate my interview</a></p>
         <p style="color:#a1a1aa;font-size:12px;">This link expires in 7 days and works only for you.</p>
       </div>`

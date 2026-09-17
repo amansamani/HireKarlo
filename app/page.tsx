@@ -58,7 +58,7 @@ export default function Home() {
       index: "02",
       label: "Scored",
       title: "Gemini reads it before you do.",
-      copy: "Every résumé is parsed server-side the moment it arrives and matched against your job description. A match score and a short AI summary land on the candidate's card — so the pipeline opens already sorted.",
+      copy: "Every résumé is parsed server-side the moment it arrives and matched against your job description. A match score and a short AI summary land on the candidate's card — so your team can prioritize a human review.",
       icon: ScanSearch,
       colorClass: "text-primary",
       ringClass: "border-primary/40",
@@ -209,7 +209,7 @@ export default function Home() {
               <Reveal delay={200}>
                 <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground lg:mx-0 text-balance">
                   Post a job, share one link, and every applicant is parsed and scored against the
-                  role before you ever open a PDF. Your pipeline arrives already sorted.
+                  role before you open a PDF. Review AI summaries alongside each candidate&apos;s resume.
                 </p>
               </Reveal>
               <Reveal delay={300}>
@@ -432,6 +432,8 @@ export default function Home() {
             © {new Date().getFullYear()} HireKarlo. Built by Aman Samani.
           </span>
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
+            <Link href="/pricing" className="hover:text-foreground transition-colors">Pricing</Link>
+            <Link href="/terms" className="hover:text-foreground transition-colors">Terms</Link>
             <Link href="/track" className="hover:text-foreground transition-colors">Track Application</Link>
             <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
             <Link href="/cookies" className="hover:text-foreground transition-colors">Cookies</Link>

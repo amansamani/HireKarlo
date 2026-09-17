@@ -21,6 +21,9 @@ const links = [
   { href: "/dashboard/jobs", label: "Jobs", icon: Briefcase },
   { href: "/dashboard/interviews", label: "Interviews", icon: CalendarClock },
   { href: "/dashboard/team", label: "Team", icon: Users2 },
+  { href: "/dashboard/clients", label: "Agency clients", icon: Briefcase },
+  { href: "/dashboard/billing", label: "Billing & usage", icon: Sparkles },
+  { href: "/dashboard/settings", label: "Workspaces", icon: Users2 },
 ];
 
 export default function Sidebar({

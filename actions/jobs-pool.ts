@@ -5,6 +5,7 @@ import { requireOrg } from "@/lib/require-auth";
 import { canEditPipeline } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
+import { lockOrganization } from "@/lib/entitlements";
 
 const PAGE_SIZE = 20;
 
@@ -13,10 +14,12 @@ export async function getAllJobsAction(
   search: string = "",
   statusFilter?: "OPEN" | "CLOSED" | "FILLED"
 ) {
+  page = Number.isSafeInteger(page) && page > 0 ? Math.min(page, 10000) : 1;
   const ctx = await requireOrg();
   if (!ctx) return { error: "Unauthorized", jobs: [], hasMore: false };
 
-  const trimmed = search.trim();
+  if (!canEditPipeline(ctx.role)) return { error: "Unauthorized", jobs: [], hasMore: false };
+  const trimmed = search.trim().slice(0, 200);
 
   try {
     const where: Prisma.JobWhereInput = {
@@ -62,10 +65,20 @@ export async function updateJobStatusAction(jobId: string, status: "OPEN" | "CLO
   if (!ctx) return { error: "Unauthorized" };
   if (!canEditPipeline(ctx.role)) return { error: "Interviewers can't change job status." };
 
+  if (!["OPEN", "CLOSED", "FILLED"].includes(status)) return { error: "Invalid job status." };
   try {
-    await prisma.job.update({
+    await prisma.$transaction(async tx => {
+    const plan = await lockOrganization(tx, ctx.organizationId);
+    const job = await tx.job.findFirst({ where: { id: jobId, organizationId: ctx.organizationId } });
+    if (!job) throw new Error("Job not found");
+    if (status === "OPEN" && job.status !== "OPEN") {
+      const active = await tx.job.count({ where: { organizationId: ctx.organizationId, status: "OPEN" } });
+      if (active >= plan.limits.jobs) throw new Error("Active job limit reached");
+    }
+    await tx.job.update({
       where: { id: jobId, organizationId: ctx.organizationId },
       data: { status },
+    });
     });
     revalidatePath("/dashboard/jobs");
     return { success: "Status updated." };
@@ -81,12 +94,13 @@ export async function deleteJobAction(jobId: string) {
   if (!canEditPipeline(ctx.role)) return { error: "Interviewers can't delete jobs." };
 
   try {
-    await prisma.job.delete({
+    await prisma.job.update({
       where: { id: jobId, organizationId: ctx.organizationId },
+      data: { status: "CLOSED" },
     });
     revalidatePath("/dashboard/jobs");
     revalidatePath("/dashboard");
-    return { success: "Job deleted." };
+    return { success: "Job archived. Applications and audit history are retained." };
   } catch (error) {
     console.error("[deleteJobAction] failed — record doesn't exist or organizationId doesn't match:", error);
     return { error: "Failed to delete job." };

@@ -1,15 +1,17 @@
 "use server";
 
+import { canEditPipeline } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/require-auth";
 
 const PAGE_SIZE = 25;
 
 export async function getAllCandidatesAction(page: number = 1, search: string = "") {
+  page = Number.isSafeInteger(page) && page > 0 ? Math.min(page, 10000) : 1;
   const ctx = await requireOrg();
-  if (!ctx) return { error: "Unauthorized", candidates: [], hasMore: false };
+  if (!ctx || !canEditPipeline(ctx.role)) return { error: "Unauthorized", candidates: [], hasMore: false };
 
-  const trimmed = search.trim();
+  const trimmed = search.trim().slice(0, 200);
 
   try {
     const rows = await prisma.candidate.findMany({
@@ -42,7 +44,7 @@ export async function getAllCandidatesAction(page: number = 1, search: string = 
     });
 
     const hasMore = rows.length > PAGE_SIZE;
-    return { candidates: rows.slice(0, PAGE_SIZE), hasMore };
+    return { candidates: rows.slice(0, PAGE_SIZE).map(c => ({ ...c, resumeUrl: c.resumeUrl ? `/api/resumes/${c.id}` : null })), hasMore };
   } catch (error) {
     console.error("Failed to fetch global candidate pool:", error);
     return { error: "Failed to load candidate list.", candidates: [], hasMore: false };
@@ -51,12 +53,13 @@ export async function getAllCandidatesAction(page: number = 1, search: string = 
 
 export async function exportCandidatesCsvAction() {
   const ctx = await requireOrg();
-  if (!ctx) return { error: "Unauthorized" };
+  if (!ctx || !canEditPipeline(ctx.role)) return { error: "Unauthorized" };
 
   try {
     const rows = await prisma.candidate.findMany({
       where: { organizationId: ctx.organizationId },
       select: {
+        id: true,
         fullName: true,
         email: true,
         phone: true,
@@ -71,7 +74,7 @@ export async function exportCandidatesCsvAction() {
       orderBy: { createdAt: "desc" },
     });
 
-    const escape = (val: string) => `"${val.replace(/"/g, '""')}"`;
+    const escape = (val: string) => { const safe = /^[\s]*[=+@-]/.test(val) ? `\'${val}` : val; return `"${safe.replace(/"/g, '""')}"`; };
     const header = ["Name", "Email", "Phone", "Experience (yrs)", "Current Company", "Current CTC", "Expected CTC", "Latest Job", "Stage", "Resume URL", "Applied Date"];
 
     const lines = rows.map((c) => {
@@ -79,7 +82,7 @@ export async function exportCandidatesCsvAction() {
       return [
         c.fullName, c.email, c.phone ?? "", String(c.experience), c.currentCompany ?? "",
         c.currentCTC != null ? String(c.currentCTC) : "", c.expectedCTC != null ? String(c.expectedCTC) : "",
-        latest?.job.title ?? "", latest?.stage ?? "", c.resumeUrl ?? "", c.createdAt.toISOString().split("T")[0],
+        latest?.job.title ?? "", latest?.stage ?? "", c.resumeUrl ? `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/resumes/${c.id}` : "", c.createdAt.toISOString().split("T")[0],
       ].map((v) => escape(String(v))).join(",");
     });
 

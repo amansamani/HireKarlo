@@ -2,25 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-
-const verifiedUsers = new Map<string, number>();
-const TTL_MS = 60_000;
-
-async function userStillExists(userId: string): Promise<boolean> {
-  const lastVerified = verifiedUsers.get(userId);
-  if (lastVerified !== undefined && Date.now() - lastVerified < TTL_MS) {
-    return true;
-  }
-
-  const exists = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
-  if (!exists) {
-    verifiedUsers.delete(userId);
-    return false;
-  }
-
-  verifiedUsers.set(userId, Date.now());
-  return true;
-}
+import { cookies } from "next/headers";
 
 export async function requireAuth() {
   const session = await auth();
@@ -36,8 +18,8 @@ export async function requireAuth() {
   if (!session?.user?.id) return null;
 
   const userId = session.user.id as string;
-  const exists = await userStillExists(userId);
-  if (!exists) {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { sessionVersion: true } });
+  if (!user || user.sessionVersion !== (session.user as { sessionVersion?: number }).sessionVersion) {
     console.error(`[requireAuth] session userId ${userId} has no matching User row — stale/invalid session. User must log out and back in.`);
     return null;
   }
@@ -49,9 +31,10 @@ export async function requireOrg(): Promise<{ userId: string; organizationId: st
   const userId = await requireAuth();
   if (!userId) return null;
 
+  const organizationId = (await cookies()).get("hirekarlo-organization")?.value;
   const membership = await prisma.membership.findFirst({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
+    where: { userId, ...(organizationId ? { organizationId } : {}) },
+    orderBy: { createdAt: "asc" },
     select: { organizationId: true, role: true },
   });
 
