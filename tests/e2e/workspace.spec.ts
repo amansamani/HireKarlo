@@ -2,7 +2,12 @@ import { test, expect, type Page } from "@playwright/test";
 test.describe("authenticated workspace journey",()=>{
   test.skip(process.env.E2E_AUDIT_DB!=="true","Requires explicitly enabled isolated local PostgreSQL fixtures");
   async function login(page:Page,email:string){
-    await page.goto("/login"); await page.getByPlaceholder("recruiter@company.com").fill(email); await page.getByPlaceholder("••••••••").fill(process.env.E2E_PASSWORD!);
+    await page.goto("/login");
+    // Complete first-visit consent before opening workspace controls.
+    const rejectAnalytics = page.getByRole("button", { name: "Reject analytics", exact: true });
+    await rejectAnalytics.click();
+    await expect(rejectAnalytics).toHaveCount(0);
+    await page.getByPlaceholder("recruiter@company.com").fill(email); await page.getByPlaceholder("••••••••").fill(process.env.E2E_PASSWORD!);
     await page.getByRole("button",{name:"Sign In",exact:true}).click(); await expect(page).toHaveURL(/\/dashboard(?:\?.*)?$/);
   }
   test("owner session survives refresh and can add a client and open a pipeline",async({page})=>{
@@ -21,7 +26,13 @@ test.describe("authenticated workspace journey",()=>{
     await page.goto(`/dashboard/jobs/${process.env.E2E_JOB_ID}`); await expect(page.getByText("Browser Audit Candidate",{exact:true})).toHaveCount(0);
     const response=await page.request.get(`/api/application-resumes/${process.env.E2E_APPLICATION_ID}`);expect([401,403,404]).toContain(response.status());
     await page.goto("/dashboard/interviews");await expect(page.getByText("Browser Assigned Round",{exact:true})).toBeVisible();await expect(page.getByText("Hidden Unassigned Candidate",{exact:true})).toHaveCount(0);await expect(page.getByRole("button",{name:"Cancel interview",exact:true})).toHaveCount(0);
-    await page.getByRole("button",{name:"Submit scorecard",exact:true}).click();await page.getByPlaceholder("Structured feedback notes…").fill("Synthetic browser feedback");await page.getByRole("button",{name:"Save scorecard",exact:true}).click();await expect(page.getByText("Result: Passed",{exact:true})).toBeVisible();await page.reload();await expect(page.getByText("Synthetic browser feedback",{exact:true})).toBeVisible();
+    await page.getByRole("button",{name:"Submit scorecard",exact:true}).click();
+    await page.getByPlaceholder("Structured feedback notes…").fill("Synthetic browser feedback");
+    await page.getByRole("button",{name:"Save scorecard",exact:true}).click();
+    await expect(page.getByText("Result: Passed",{exact:true})).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("button",{name:"Reject analytics",exact:true})).toHaveCount(0);
+    await expect(page.getByText("Synthetic browser feedback",{exact:true})).toBeVisible();
   });
   test("owner cannot inspect an application pipeline without a workspace membership",async({page})=>{
     await login(page,process.env.E2E_OWNER_EMAIL!); await page.goto(`/dashboard/jobs/${process.env.E2E_OTHER_JOB_ID}`);
