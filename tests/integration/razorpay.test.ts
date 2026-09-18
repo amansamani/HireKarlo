@@ -11,6 +11,8 @@ import { syncRazorpayAgreement, cancelRazorpaySubscription } from "@/lib/razorpa
 import { POST } from "@/app/api/billing/razorpay/webhook/route";
 import { GET as reconcile } from "@/app/api/cron/billing-reconciliation/route";
 import { checkoutAction, refreshBillingAction, cancelSubscriptionAction } from "@/actions/billing";
+import { completeRazorpayCheckoutAction } from "@/actions/billing";
+import { completeRazorpayCheckout } from "@/lib/razorpay-completion";
 
 describe("Razorpay lifecycle with real isolated PostgreSQL", () => {
   const prefix = `razorpay-${randomUUID()}`;
@@ -55,6 +57,7 @@ describe("Razorpay lifecycle with real isolated PostgreSQL", () => {
     vi.unstubAllEnvs(); await prisma.$disconnect();
   });
   async function start() { await openRazorpayCheckout(state.ctx, "STARTER", "INR"); return (await prisma.razorpayAgreement.findFirstOrThrow({ where: { organizationId: state.ctx.organizationId } })).id; }
+  function callback() { return { razorpay_payment_id: payment.id, razorpay_subscription_id: remote.id, razorpay_signature: createHmac("sha256", "synthetic").update(`${payment.id}|${remote.id}`).digest("hex") }; }
   function paid() {
     remote.status = "active"; remote.paid_count = 1;
     invoices = [{ id: "inv_audit", subscription_id: remote.id, status: "paid", amount: 149900, amount_paid: 149900, currency: "INR", payment_id: payment.id, paid_at: now, billing_start: now - 60, billing_end: now + 86400 }];
@@ -160,7 +163,29 @@ describe("Razorpay lifecycle with real isolated PostgreSQL", () => {
     await expect(checkoutAction(new FormData())).rejects.toThrow("NEXT_REDIRECT");
     await expect(refreshBillingAction()).rejects.toThrow("NEXT_REDIRECT");
     await expect(cancelSubscriptionAction(new FormData())).rejects.toThrow("NEXT_REDIRECT");
+    expect((await completeRazorpayCheckoutAction("anything", {})).status).toBe("error");
     expect(state.provider).not.toHaveBeenCalled();
+  });
+  it("returns from checkout only after verifying capture and makes repeated callbacks harmless", async () => {
+    const id = await start();
+    remote.status = "authenticated";
+    expect(await completeRazorpayCheckout(state.ctx, id, callback())).toBe("pending");
+    expect(await prisma.subscription.findUnique({ where: { organizationId: state.ctx.organizationId } })).toBeNull();
+    paid(); expect(await completeRazorpayCheckout(state.ctx, id, callback())).toBe("verified");
+    expect(await completeRazorpayCheckout(state.ctx, id, callback())).toBe("verified");
+    expect(await prisma.billingPayment.count({ where: { organizationId: state.ctx.organizationId } })).toBe(1);
+    expect(creations).toBe(1);
+  });
+  it("rejects forged callbacks, another workspace and mismatched subscription IDs before provider reads", async () => {
+    const id = await start(); paid(); state.provider.mockClear();
+    await expect(completeRazorpayCheckout(state.ctx, id, { ...callback(), razorpay_signature: "0".repeat(64) })).rejects.toThrow("Invalid payment confirmation");
+    await expect(completeRazorpayCheckout(state.ctx, id, { ...callback(), razorpay_subscription_id: "sub_other" })).rejects.toThrow("Invalid payment confirmation");
+    await expect(completeRazorpayCheckout({ ...state.ctx, organizationId: "other" }, id, callback())).rejects.toThrow();
+    expect(state.provider).not.toHaveBeenCalled();
+  });
+  it("supports manual return after lost browser callbacks using fresh provider state", async () => {
+    const id = await start(); paid();
+    expect(await completeRazorpayCheckout(state.ctx, id)).toBe("verified");
   });
   it("allows one provider customer to pay for separate workspaces", async () => {
     const id = await start(); paid();

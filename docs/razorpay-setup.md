@@ -56,9 +56,9 @@ npm run dev
 ```
 
 1. Sign in as a company owner and open **Billing & usage**. Confirm the Test payments banner.
-2. Choose a plan. The app creates one subscription agreement and redirects to Razorpay's hosted subscription checkout.
+2. Choose a plan. The app creates one subscription agreement and opens HireKarlo's checkout page. Click **Pay with Razorpay** to open Razorpay Standard Checkout.
 3. Use Razorpay's current documented test payment details. Do not enter real payment details for this test.
-4. Return to the billing page and press **Refresh payment status**. The server fetches the subscription, paid invoice and captured payment before granting paid access. A browser redirect or authenticated mandate alone never activates a paid plan.
+4. Successful checkout sends a subscription callback to HireKarlo. The server checks its HMAC using the API key secret and the subscription ID from the stored tenant agreement, then fetches the subscription, paid invoice and captured payment before returning to billing. A browser redirect or authenticated mandate alone never activates a paid plan. If confirmation is delayed, use **Refresh payment status**. If a bank/UPI app interrupts the browser callback, close checkout and use **Check payment and return**, or open billing manually and refresh; do not create another agreement to retry a successful charge.
 5. Confirm the correct plan, paid-through date and payment record. Refresh again: no duplicate payment records or agreements should appear.
 6. In Test Mode, exercise failed payment, delayed/retried webhook, renewal and cancellation scenarios. An active cancellation ends renewal and retains already verified paid access until the paid-through date. Full refunds revoke the corresponding paid period; partial refunds keep access. Subscription cancellation does not itself issue a refund.
 7. Confirm admins can view billing but only owners can buy, cancel or refresh it. Check another company cannot see this company's payments.
@@ -81,7 +81,7 @@ Complete Razorpay activation/Subscriptions eligibility, company contact and supp
 
 - Hosted checkout keeps card and mandate entry with Razorpay. HMAC is checked over the exact webhook bytes. All entitlement decisions use fresh provider reads and tenant ownership/plan checks, with database locks, duplicate-event handling and a durable agreement record.
 - Creation is limited to one pending subscription per company. Do not delete a pending database row to work around an error. Use Refresh, cancel the unpaid checkout, or investigate the provider agreement. An uncertain creation that cannot be found needs operator review. Account key rotation also requires review: saved agreements bind to the creating key ID and will not silently migrate to another account/key.
-- Hosted subscription links currently require returning to HireKarlo manually; the app does not rely on an unverified browser payment callback.
+- New checkouts use Razorpay Standard Checkout inside HireKarlo and return automatically after verification. Old standalone subscription links still require a manual return. Browser callback failure does not discard the agreement; manual verification, signed webhooks and reconciliation remain available.
 - Agreements run for up to 120 monthly cycles unless cancelled sooner. INR only for Razorpay. Plan changes/proration, coupons, add-ons, automated refund issuance and self-service payment-method changes are not implemented. Do not change a live provider plan out of band; mismatched plans fail closed.
 - Existing Stripe customers require an operator-managed migration to Razorpay; changing the provider setting does not migrate subscriptions or permit duplicate billing.
 - The app displays verified payment records, not GST/tax invoices. The displayed price must match the total provider invoice charge. Extra taxes/add-ons require a deliberate pricing implementation. Use your agreed invoicing process before live launch.

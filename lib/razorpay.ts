@@ -32,6 +32,11 @@ export function validRazorpaySignature(body: Uint8Array, signature: string | nul
   return timingSafeEqual(createHmac("sha256", secret).update(body).digest(), Buffer.from(signature, "hex"));
 }
 
+export function validRazorpayCheckoutSignature(paymentId: string, subscriptionId: string, signature: string, secret: string) {
+  if (!/^pay_[a-zA-Z0-9]+$/.test(paymentId) || !/^sub_[a-zA-Z0-9]+$/.test(subscriptionId)) return false;
+  return validRazorpaySignature(Buffer.from(`${paymentId}|${subscriptionId}`), signature, secret);
+}
+
 export const RazorpaySubscriptionSchema = z.object({
   id: z.string().regex(/^sub_[a-zA-Z0-9]+$/), plan_id: z.string().startsWith("plan_"),
   customer_id: z.string().nullish(), status: z.enum(["created", "authenticated", "active", "pending", "halted", "paused", "cancelled", "completed", "expired"]),

@@ -1,8 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createHmac } from "crypto";
-import { validRazorpaySignature, safeRazorpayUrl, razorpayCredentials, validatedRazorpayPlan } from "@/lib/razorpay";
+import { validRazorpaySignature, validRazorpayCheckoutSignature, safeRazorpayUrl, razorpayCredentials, validatedRazorpayPlan } from "@/lib/razorpay";
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 describe("Razorpay boundaries", () => {
+  it("checks subscription callback signatures using the stored subscription ID", () => {
+    const signature = createHmac("sha256", "synthetic-key-secret").update("pay_test|sub_stored").digest("hex");
+    expect(validRazorpayCheckoutSignature("pay_test", "sub_stored", signature, "synthetic-key-secret")).toBe(true);
+    expect(validRazorpayCheckoutSignature("pay_test", "sub_other", signature, "synthetic-key-secret")).toBe(false);
+    expect(validRazorpayCheckoutSignature("pay_changed", "sub_stored", signature, "synthetic-key-secret")).toBe(false);
+  });
   it("verifies the exact signed bytes and rejects tampering and malformed signatures", () => {
     const body = Buffer.from('{"event":"subscription.charged"}');
     const signature = createHmac("sha256", "test-webhook-secret").update(body).digest("hex");

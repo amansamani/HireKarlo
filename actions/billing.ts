@@ -10,6 +10,7 @@ import { logError } from "@/lib/logger";
 import { billingProvider } from "@/lib/billing-config";
 import { openRazorpayCheckout, abandonRazorpayCheckout } from "@/lib/razorpay-checkout";
 import { cancelRazorpaySubscription, refreshRazorpayBilling } from "@/lib/razorpay-sync";
+import { completeRazorpayCheckout } from "@/lib/razorpay-completion";
 
 export async function checkoutAction(form: FormData) {
   const ctx = await requireOrg();
@@ -19,7 +20,10 @@ export async function checkoutAction(form: FormData) {
     const plan = String(form.get("plan")), currency = String(form.get("currency"));
     if (!isPlanId(plan) || (currency !== "INR" && currency !== "USD")) throw new Error("Invalid plan");
     if (!(await allowRequest(`checkout:${ctx.organizationId}`, 5, 600_000))) throw new Error("Rate limited");
-    url = billingProvider() === "razorpay" ? await openRazorpayCheckout(ctx, plan, currency) : await openCheckout(ctx, plan, currency);
+    if (billingProvider() === "razorpay") {
+      await openRazorpayCheckout(ctx, plan, currency);
+      url = "/dashboard/billing/checkout";
+    } else url = await openCheckout(ctx, plan, currency);
   } catch (error) {
     logError("billing.checkout_failed", error);
     redirect(`/dashboard/billing?error=${error instanceof CheckoutError ? error.code : "checkout"}`);
@@ -65,6 +69,15 @@ export async function refreshBillingAction() {
     await refreshRazorpayBilling(ctx.organizationId);
   } catch (error) { logError("billing.refresh_failed", error); redirect("/dashboard/billing?error=review"); }
   redirect("/dashboard/billing?refreshed=1");
+}
+
+export async function completeRazorpayCheckoutAction(agreementId: string, callback?: unknown) {
+  const ctx = await requireOrg();
+  if (!ctx || ctx.role !== "OWNER") return { status: "error" as const };
+  try {
+    if (!(await allowRequest(`billing-refresh:${ctx.organizationId}`, 10, 600_000))) throw new Error("Rate limited");
+    return { status: await completeRazorpayCheckout(ctx, agreementId, callback) };
+  } catch (error) { logError("billing.checkout_confirmation_failed", error); return { status: "error" as const }; }
 }
 
 export async function cancelSubscriptionAction(form: FormData) {
