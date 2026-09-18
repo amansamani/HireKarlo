@@ -2,7 +2,7 @@
 import DashboardShell from "@/components/layout/dashboard-shell";
 import AuthSessionProvider from "@/components/session-provider";
 import { auth } from "@/lib/auth";
-import { requireAuth } from "@/lib/require-auth";
+import { requireAuth, requireOrg } from "@/lib/require-auth";
 import { redirect } from "next/navigation";
 
 export default async function DashboardLayout({
@@ -12,10 +12,11 @@ export default async function DashboardLayout({
 }) {
   const session = await auth();
   if (!(await requireAuth())) redirect("/login");
+  const context = await requireOrg();
 
   return (
     <AuthSessionProvider session={session}>
-      <DashboardShell>{children}</DashboardShell>
+      <DashboardShell role={context?.role ?? null}>{children}</DashboardShell>
     </AuthSessionProvider>
   );
 }

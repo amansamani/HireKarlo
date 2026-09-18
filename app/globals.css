@@ -200,3 +200,58 @@
     mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, black 40%, transparent 85%);
   }
 }
+/* Shared interaction and surface language. */
+@layer base {
+  button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: pointer; }
+  :where(a, button, input, textarea, select):focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
+  h1, h2, h3 { text-wrap: balance; }
+  input, textarea, select { transition: border-color 160ms, box-shadow 160ms; }
+  * { scrollbar-width: thin; scrollbar-color: #41453c transparent; }
+}
+.eyebrow { color: var(--primary); font-size: .68rem; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; }
+.workspace-content { background-image: radial-gradient(ellipse at 90% 0%, #b8ed6505, transparent 55%); scrollbar-gutter: stable; }
+.marketing-shell { background: #10120f; color: #f2f4ee; }
+.marketing-section { max-width: 1240px; margin-inline: auto; padding-inline: clamp(1.25rem, 4vw, 4rem); }
+.premium-panel { border: 1px solid #ffffff16; background: linear-gradient(145deg, #ffffff06, #ffffff01); box-shadow: 0 24px 80px #00000024; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+
+/* Landing motion uses transforms/opacity, with no timers or scroll hijacking. */
+.landing-hero { isolation: isolate; }
+.hero-ambient { position: absolute; pointer-events: none; z-index: -1; inset: 0; overflow: hidden; }
+.hero-ambient::before { content: ""; position: absolute; width: 65%; height: 90%; top: -25%; right: -10%; background: radial-gradient(ellipse, #b5ec7012, transparent 70%); }
+.hero-line { display: block; overflow: clip; padding-bottom: .09em; margin-bottom: -.09em; }
+.hero-line > span { display: block; }
+.motion-card, .workflow-frame { position: relative; isolation: isolate; }
+.motion-card { overflow: hidden; }
+[data-spotlight]::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: -1; opacity: 0; background: radial-gradient(380px circle at var(--spot-x,50%) var(--spot-y,50%), #c5ff7914, transparent 75%); transition: opacity 300ms; }
+.motion-nav a { position: relative; padding-block: 8px; }
+.motion-nav a::after { content: ""; position: absolute; left: 0; bottom: 0; height: 1px; width: 100%; background: var(--primary); transform: scaleX(0); transform-origin: left; transition: transform 220ms; }
+.motion-nav a:hover::after, .motion-nav a:focus-visible::after { transform: scaleX(1); }
+.workflow-progress > span { overflow: hidden; height: 2px; border-radius: 10px; background: #ffffff0d; }
+.workflow-progress > span > span { display: block; height: 100%; background: var(--primary); transform-origin: left; transition: transform 380ms cubic-bezier(.22,1,.36,1); }
+@media (prefers-reduced-motion: reduce) {
+  .marketing-shell *, .marketing-shell *::before, .marketing-shell *::after { animation: none !important; transition: none !important; }
+}
+@keyframes landing-line { from { transform: translateY(108%); opacity: .1; } to { transform: translateY(0); opacity: 1; } }
+@keyframes landing-enter { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes landing-light { from { transform: translate(-12%, 12%) scale(.85); opacity: 0; } to { transform: translate(0, 0) scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: no-preference) {
+  .hero-line > span { animation: landing-line 900ms cubic-bezier(.22,1,.36,1) both; }
+  .hero-line:nth-child(2) > span { animation-delay: 120ms; }
+  .hero-intro { animation: landing-enter 650ms 80ms both; }
+  .hero-copy { animation: landing-enter 800ms 240ms both; }
+  .hero-ambient::before { animation: landing-light 3500ms ease-out both; }
+  .workflow-person { animation: landing-enter 430ms cubic-bezier(.22,1,.36,1) backwards; }
+  .workflow-description { animation: landing-enter 480ms cubic-bezier(.22,1,.36,1) backwards; }
+  .motion-card, .motion-cta, .motion-detail, .workflow-tab { transition: transform 260ms cubic-bezier(.22,1,.36,1), border-color 260ms, background-color 260ms, box-shadow 260ms; }
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  [data-spotlight]:hover::before { opacity: 1; }
+  .motion-card:hover { transform: translateY(-6px); box-shadow: 0 20px 45px #00000028; }
+  .motion-cta:hover { transform: translateY(-3px); box-shadow: 0 10px 30px #a9ee5720; }
+  .motion-cta:hover svg { transform: translate(2px, -2px); }
+  .motion-cta svg { transition: transform 260ms; }
+  .motion-detail:hover { transform: translateX(5px); }
+  .workflow-tab:hover { transform: translateY(-2px); }
+}

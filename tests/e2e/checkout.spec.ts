@@ -25,4 +25,23 @@ test.describe("subscription checkout return", () => {
     await page.getByRole("link", { name: "Back to billing", exact: true }).click();
     await expect(page).toHaveURL(/\/dashboard\/billing$/);
   });
+  test("checkout shows progress while the payment window is open", async ({ page }) => {
+    await page.route("https://checkout.razorpay.com/v1/checkout.js", route => route.fulfill({ contentType: "application/javascript", body: "window.Razorpay = class { constructor(options) { this.options = options; } on() {} open() {} };" }));
+    await login(page); await page.goto("/dashboard/billing/checkout");
+    await page.getByRole("button", { name: "Pay with Razorpay", exact: true }).click();
+    const progress = page.getByRole("button", { name: "Payment in progress…", exact: true });
+    await expect(progress).toBeDisabled();
+    await expect(progress).toHaveAttribute("aria-busy", "true");
+    await expect(progress.locator("svg")).toBeVisible();
+    await page.screenshot({ path: "audit-artifacts/checkout-progress.png", fullPage: true });
+  });
+  test("a failed checkout script stops loading and offers recovery", async ({ page }) => {
+    await page.route("https://checkout.razorpay.com/v1/checkout.js", route => route.abort("failed"));
+    await login(page); await page.goto("/dashboard/billing/checkout");
+    const unavailable = page.getByRole("button", { name: "Checkout unavailable", exact: true });
+    await expect(unavailable).toBeDisabled();
+    await expect(unavailable).toHaveAttribute("aria-busy", "false");
+    await expect(page.getByRole("button", { name: "Reload checkout", exact: true })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Check payment and return", exact: true })).toBeEnabled();
+  });
 });

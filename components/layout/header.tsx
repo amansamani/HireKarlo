@@ -27,9 +27,16 @@ const TITLE_MAP: Record<string, string> = {
   "/dashboard/jobs/create": "Create Job",
   "/dashboard/interviews": "Interviews",
   "/dashboard/team": "Team",
+  "/dashboard/billing": "Billing & usage",
+  "/dashboard/billing/checkout": "Secure checkout",
+  "/dashboard/clients": "Agency clients",
+  "/dashboard/settings": "Workspaces",
+  "/dashboard/audit": "Audit history",
 };
 
 function getPageTitle(pathname: string) {
+  if (/^\/dashboard\/jobs\/[^/]+\/edit$/.test(pathname)) return "Edit opening";
+  if (/^\/dashboard\/candidates\/[^/]+$/.test(pathname)) return "Candidate profile";
   if (TITLE_MAP[pathname]) return TITLE_MAP[pathname];
   if (/^\/dashboard\/jobs\/[^/]+$/.test(pathname)) return "Job Pipeline";
   return "Dashboard";
@@ -90,17 +97,18 @@ function NotificationBell() {
     if (!open) return;
     (async () => {
       setLoading(true);
+      try {
       const res = await getNotificationsAction();
-      setLoading(false);
       const list = (res.notifications ?? []) as Notif[];
       setItems(list);
       const seen = localStorage.getItem("hk-notif-seen");
       setUnread(seen ? list.filter((n) => +new Date(n.at) > +new Date(seen)).length : list.length);
+      } catch { toast.error("Notifications could not load. Reopen to try again."); } finally { setLoading(false); }
     })();
   }, [open]);
 
   function handleClose() {
-    localStorage.setItem("hk-notif-seen", new Date().toISOString());
+    try { localStorage.setItem("hk-notif-seen", new Date().toISOString()); } catch { /* Storage may be unavailable in private browsing. */ }
     setUnread(0);
     setOpen(false);
   }
@@ -183,26 +191,32 @@ function SettingsMenu({
 
   async function saveBio() {
     setBusy("bio");
+    try {
     const res = await updateMyBioAction(bioText);
-    setBusy(null);
+
     if (res?.error) toast.error(res.error);
     else {
       toast.success("Bio updated.");
       setEditingBio(false);
       onChanged();
     }
-  }
+
+    } catch { toast.error("Could not save your bio. Please try again."); } finally { setBusy(null); }
+}
 
   async function disconnect() {
     setBusy("cal");
+    try {
     const res = await disconnectGoogleCalendarAction();
-    setBusy(null);
+
     if (res?.error) toast.error(res.error);
     else {
       toast.success(res.success ?? "Calendar disconnected.");
       onChanged();
     }
-  }
+
+    } catch { toast.error("Could not confirm the calendar change. Refresh to check."); } finally { setBusy(null); }
+}
 
   return (
     <div className="relative" ref={ref}>
@@ -377,7 +391,7 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
 
   useEffect(() => {
     (async () => {
-      const res = await getTeamAction();
+      const res = await getTeamAction().catch(() => { toast.error("Workspace details could not load. Refresh to try again."); return null; });
       if (res && !("error" in res && res.error)) {
         setRole((res as { currentRole?: string }).currentRole ?? null);
         setCalendarEmail((res as { googleCalendarEmail?: string | null }).googleCalendarEmail ?? null);
@@ -392,7 +406,7 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
   const refreshTeam = useCallback(() => setTeamVersion((v) => v + 1), []);
 
   return (
-      <header className="relative z-50 flex h-16 shrink-0 items-center justify-between border-b border-border/40 bg-background/80 backdrop-blur-xl px-4 sm:px-6 lg:px-8">
+      <header className="relative z-30 flex h-16 shrink-0 items-center justify-between border-b border-border/40 bg-background/80 backdrop-blur-xl px-4 sm:px-6 lg:px-8">
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -403,7 +417,7 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
           <Menu className="h-5 w-5" aria-hidden="true" />
         </button>
         <Image src="/logo.webp" alt="HireKarlo Logo" width={96} height={24} className="h-6 w-auto object-contain md:hidden" priority />
-        <h1 className="hidden text-lg font-semibold tracking-tight sm:block sm:text-xl">{pageTitle}</h1>
+        <p className="hidden text-lg font-semibold tracking-tight sm:block sm:text-xl">{pageTitle}</p>
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2">

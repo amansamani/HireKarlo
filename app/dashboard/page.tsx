@@ -6,7 +6,6 @@ import {
   UserCheck,
   CalendarCheck2,
   Trophy,
-  TrendingUp,
   ArrowRight,
   CalendarClock,
 } from "lucide-react";
@@ -77,6 +76,10 @@ export default async function DashboardPage() {
 
   const role = (teamRes as { currentRole?: string }).currentRole ?? null;
   const isCreator = canCreateJob(role);
+  if (teamRes.error) throw new Error("Workspace details are temporarily unavailable.");
+
+  if (!isCreator) return <section className="mx-auto max-w-4xl space-y-7 py-3"><p className="eyebrow">Your workspace</p><h1 className="text-4xl font-medium tracking-tight">Every conversation counts.</h1><p className="max-w-xl text-muted-foreground">Find your assigned interviews, review the candidate context and share structured feedback with the hiring team.</p><Link href="/dashboard/interviews" className="inline-flex min-h-12 items-center gap-4 rounded-xl bg-primary px-5 font-semibold text-primary-foreground">My assigned interviews<ArrowRight className="size-4" aria-hidden="true"/></Link></section>;
+  if (res.error) throw new Error("Workspace analytics are temporarily unavailable.");
 
   const stats: StatsData = res.stats || {
     totalJobs: 0,
@@ -91,13 +94,14 @@ export default async function DashboardPage() {
   const conversionRate = totalApps > 0 ? ((totalHired / totalApps) * 100).toFixed(1) : "0";
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="mx-auto max-w-7xl space-y-8 animate-in fade-in duration-500">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-6 rounded-3xl border border-primary/15 bg-gradient-to-br from-primary/[.07] to-card/30 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Welcome back</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Track key pipeline metrics and manage your hiring workflow.
+          <p className="eyebrow mb-4">Your hiring workspace</p>
+          <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">A clear view of what’s next.</h1>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Your people, open roles and hiring progress, together.
           </p>
         </div>
         {/* ✅ "Manage Jobs" only for roles that can edit the pipeline */}
@@ -116,7 +120,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-5">
         {STAT_DEFS.map((def, i) => {
           const Icon = def.icon;
           const value = stats[def.key];
@@ -136,12 +140,11 @@ export default async function DashboardPage() {
                   >
                     <Icon className="h-5 w-5" aria-hidden="true" />
                   </div>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground/40 group-hover:text-primary/60 transition-colors" />
                 </div>
                 <div className="space-y-1">
                   <p className="text-3xl font-bold tracking-tight text-foreground">{value}</p>
                   <p className="text-xs font-medium text-muted-foreground">{def.label}</p>
-                  <p className="text-[10px] text-muted-foreground/70">{def.hint}</p>
+                  <p className="text-[11px] leading-5 text-muted-foreground">{def.hint}</p>
                 </div>
               </div>
             </div>

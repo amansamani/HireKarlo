@@ -60,45 +60,43 @@ export default function CandidatesPoolClient({
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestVersion = useRef(0);
+  const loadingMore = useRef(false);
 
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
+    const version = ++requestVersion.current;
+    const timer = setTimeout(async () => {
       setIsSearching(true);
-      const res = await getAllCandidatesAction(1, searchQuery);
-      setIsSearching(false);
-      if (res.error) {
-        toast.error(res.error);
-        return;
-      }
-      setCandidates(res.candidates as GlobalCandidate[]);
-      setPage(1);
-      setHasMore(res.hasMore);
+      try {
+        const res = await getAllCandidatesAction(1, searchQuery);
+        if (version !== requestVersion.current) return;
+        if (res.error) { toast.error(res.error); return; }
+        setCandidates(res.candidates as GlobalCandidate[]);
+        setPage(1); setHasMore(res.hasMore);
+      } catch { if (version === requestVersion.current) toast.error("Search could not load. Please try again."); }
+      finally { if (version === requestVersion.current) setIsSearching(false); }
     }, 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
+    return () => { clearTimeout(timer); requestVersion.current++; };
   }, [searchQuery]);
 
   const loadMore = useCallback(async () => {
-    setIsLoadingMore(true);
-    const nextPage = page + 1;
-    const res = await getAllCandidatesAction(nextPage, searchQuery);
-    if (res.error) {
-      toast.error(res.error);
-    } else {
-      setCandidates((current) => [...current, ...res.candidates]);
-      setPage(nextPage);
-      setHasMore(res.hasMore);
-    }
-    setIsLoadingMore(false);
-  }, [page, searchQuery]);
+    if (loadingMore.current || isSearching) return;
+    loadingMore.current = true; setIsLoadingMore(true);
+    const version = requestVersion.current, nextPage = page + 1;
+    try {
+      const res = await getAllCandidatesAction(nextPage, searchQuery);
+      if (version !== requestVersion.current) return;
+      if (res.error) toast.error(res.error);
+      else { setCandidates(current => [...current, ...(res.candidates as GlobalCandidate[])]); setPage(nextPage); setHasMore(res.hasMore); }
+    } catch { if (version === requestVersion.current) toast.error("Could not load more records. Please try again."); }
+    finally { loadingMore.current = false; setIsLoadingMore(false); }
+  }, [page, searchQuery, isSearching]);
 
   const handleExport = useCallback(async () => {
     setIsExporting(true);
+    try {
     const res = await exportCandidatesCsvAction();
-    setIsExporting(false);
+
     if (res.error) {
       toast.error(res.error);
       return;
@@ -110,13 +108,15 @@ export default function CandidatesPoolClient({
     a.download = `candidates-${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, []);
+
+    } catch { toast.error("Could not export candidates. Check your connection and try again."); } finally { setIsExporting(false); }
+}, []);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 animate-in fade-in duration-500">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Global Candidate Pool</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Candidate pool</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Search and manage all applicants across every active opening.
         </p>
@@ -314,7 +314,7 @@ export default function CandidatesPoolClient({
             size="sm"
             className="gap-2 rounded-xl text-xs font-semibold"
             onClick={loadMore}
-            disabled={isLoadingMore}
+            disabled={isLoadingMore || isSearching}
           >
             {isLoadingMore ? (
               <>

@@ -47,8 +47,9 @@ export default function LoginPage() {
 
   async function onSubmit(values: z.infer<typeof LoginSchema>) {
     setIsLoading(true);
+    try {
     const res = await loginAction(values);
-    setIsLoading(false);
+
 
     if (res?.error) {
       toast.error(res.error);
@@ -57,7 +58,9 @@ export default function LoginPage() {
       router.push("/dashboard");
       router.refresh();
     }
-  }
+
+    } catch { toast.error("Could not sign in. Check your connection and try again."); } finally { setIsLoading(false); }
+}
 
   return (
     <div className="relative isolate grid min-h-dvh grid-cols-1 lg:grid-cols-2">
@@ -194,6 +197,7 @@ export default function LoginPage() {
               <button type="button" disabled={isLoading} className="block w-full text-sm text-primary disabled:opacity-50" onClick={async () => {
                 setIsLoading(true);
                 try { const result = await resendVerificationAction({ email: form.getValues("email") }); if (result.error) toast.error(result.error); else toast.success(result.success); }
+                catch { toast.error("Could not request verification. Please try again shortly."); }
                 finally { setIsLoading(false); }
               }}>Resend verification email</button>
 

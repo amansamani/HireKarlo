@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+import { NavigationFeedback } from "@/components/ui/navigation-feedback";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -14,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
+import { canEditPipeline, canManageTeam } from "@/lib/roles";
 
 const links = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -29,11 +32,30 @@ const links = [
 export default function Sidebar({
   mobileOpen,
   onClose,
+  role,
 }: {
   mobileOpen: boolean;
   onClose: () => void;
+  role: string | null;
 }) {
   const pathname = usePathname();
+  const sidebarRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const panel = sidebarRef.current;
+    const focusables = () => Array.from(panel?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') ?? []).filter(el => el.getClientRects().length);
+    focusables()[0]?.focus();
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") { onClose(); return; }
+      if (event.key !== "Tab" || window.matchMedia("(min-width: 768px)").matches) return;
+      const items = focusables(), first = items[0], last = items.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("keydown", onKey); previous?.focus(); };
+  }, [mobileOpen, onClose]);
 
   return (
     <>
@@ -45,11 +67,11 @@ export default function Sidebar({
         />
       )}
 
-      <aside
+      <aside ref={sidebarRef}
         className={cn(
           "fixed inset-y-0 left-0 z-50 flex w-72 shrink-0 flex-col border-r border-border/40 bg-gradient-to-b from-background via-background to-background/95 transition-transform duration-300 ease-out",
-          "md:static md:z-auto md:h-dvh md:translate-x-0",
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+          "md:static md:visible md:z-auto md:h-dvh md:translate-x-0",
+          mobileOpen ? "visible translate-x-0" : "invisible -translate-x-full"
         )}
       >
         {/* Logo */}
@@ -85,11 +107,15 @@ export default function Sidebar({
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-6 space-y-1" aria-label="Main navigation">
+        <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-6 space-y-1" aria-label="Main navigation">
           <p className="px-3 mb-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             Navigation
           </p>
-          {links.map((link) => {
+          {links.filter(link => {
+            if (link.href === "/dashboard/billing") return canManageTeam(role ?? "");
+            if (["/dashboard/candidates", "/dashboard/jobs", "/dashboard/clients"].includes(link.href)) return canEditPipeline(role ?? "");
+            return true;
+          }).map((link) => {
             const Icon = link.icon;
             const isActive =
               link.href === "/dashboard"
@@ -120,7 +146,7 @@ export default function Sidebar({
                   )}
                   aria-hidden="true"
                 />
-                <span className="flex-1">{link.label}</span>
+                <span className="flex-1">{link.label}</span><NavigationFeedback />
                 {isActive && (
                   <ChevronRight className="h-4 w-4 text-primary/60" aria-hidden="true" />
                 )}
@@ -137,11 +163,11 @@ export default function Sidebar({
               <div className="flex items-center gap-2 mb-2">
                 <Sparkles className="h-4 w-4 text-primary" />
                 <p className="text-sm font-semibold text-foreground">
-                  AI-Powered ATS
+                  People first. AI assisted.
                 </p>
               </div>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Score resumes automatically with Gemini AI
+                Organize your shortlist. Keep every hiring decision in human hands.
               </p>
             </div>
           </div>

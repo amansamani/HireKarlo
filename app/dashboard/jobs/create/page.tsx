@@ -89,8 +89,9 @@ export default function CreateJobPage() {
 
   async function onSubmit(values: z.infer<typeof CreateJobSchema>) {
     setIsLoading(true);
+    try {
     const res = await createJobAction({ ...values, interviewRounds: rounds });
-    setIsLoading(false);
+
 
     if (res?.error) {
       toast.error(res.error);
@@ -99,7 +100,9 @@ export default function CreateJobPage() {
       router.push("/dashboard/jobs");
       router.refresh();
     }
-  }
+
+    } catch { toast.error("Could not confirm the new job. Check the Jobs page before submitting again."); } finally { setIsLoading(false); }
+}
 
   const finalPipeline = ["Applied", ...(rounds.length > 0 ? rounds : ["Interview"]), "Offer", "Rejected"];
 

@@ -51,12 +51,15 @@ function ResetForm() {
 
   async function onSubmit(values: z.infer<typeof Schema>) {
     setIsLoading(true);
+    try {
     // ✅ FIXED call — includes email
     const res = await resetPasswordAction({ email, token, password: values.password });
-    setIsLoading(false);
+
     if (res?.error) toast.error(res.error);
     else setDone(true);
-  }
+
+    } catch { toast.error("Could not confirm your request. Check your email or try again shortly."); } finally { setIsLoading(false); }
+}
 
   return (
     <div className="w-full max-w-md animate-in fade-in slide-in-from-bottom-4 duration-700">

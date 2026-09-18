@@ -34,26 +34,32 @@ export default function TrackPage() {
     e.preventDefault();
     if (!email.trim()) return;
     setBusy(true);
+    try {
     const res = await sendApplicationOtpAction(email.trim());
-    setBusy(false);
+
     if (res?.error) toast.error(res.error);
     else {
       toast.success(`Code sent to ${email.trim()}.`);
       setStep("otp");
     }
-  }
+
+    } catch { toast.error("Could not request a code. Check your connection and try again."); } finally { setBusy(false); }
+}
 
   async function lookup(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    try {
     const res = await getApplicationStatusAction(email.trim(), otp.trim());
-    setBusy(false);
+
     if (res?.error) toast.error(res.error);
     else {
       setResults(res.applications ?? []);
       setStep("results");
     }
-  }
+
+    } catch { toast.error("Could not load your application. Please try again."); } finally { setBusy(false); }
+}
 
   return (
     <div className="relative isolate min-h-dvh">

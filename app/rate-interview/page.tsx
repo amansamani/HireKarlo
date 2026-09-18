@@ -24,11 +24,14 @@ function RateForm() {
   async function submit() {
     if (!rating) return toast.error("Select a star rating first.");
     setBusy(true);
+    try {
     const res = await submitInterviewExperienceRatingAction(token, rating);
-    setBusy(false);
+
     if (res?.error) toast.error(res.error);
     else setDone(true);
-  }
+
+    } catch { toast.error("Could not confirm your rating. Please try again shortly."); } finally { setBusy(false); }
+}
 
   return (
     <div className="w-full max-w-md animate-in fade-in slide-in-from-bottom-4 duration-700">

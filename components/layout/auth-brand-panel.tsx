@@ -20,11 +20,11 @@ export function AuthBrandPanel({
     <div className="relative hidden flex-col justify-between overflow-hidden border-r border-border/40 bg-gradient-to-br from-background via-card to-background p-12 lg:flex">
       {/* Animated gradient orbs */}
       <div
-        className="animate-pulse pointer-events-none absolute -top-32 -right-32 h-96 w-96 rounded-full bg-primary/15 blur-3xl"
+        className="pointer-events-none absolute -top-32 -right-32 h-96 w-96 rounded-full bg-primary/15 blur-3xl"
         aria-hidden="true"
       />
       <div
-        className="animate-pulse pointer-events-none absolute -bottom-32 -left-32 h-72 w-72 rounded-full bg-primary/10 blur-3xl"
+        className="pointer-events-none absolute -bottom-32 -left-32 h-72 w-72 rounded-full bg-primary/10 blur-3xl"
         aria-hidden="true"
       />
 
@@ -58,9 +58,9 @@ export function AuthBrandPanel({
         <div className="animate-in fade-in-0 slide-in-from-left-4 space-y-4 duration-700 fill-mode-backwards">
           <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/80 backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-muted-foreground">
             <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-            AI-Powered Recruitment
+            Thoughtful hiring, together
           </div>
-          <h2 className="text-4xl font-bold leading-tight tracking-tight">
+          <h2 className="text-5xl font-medium leading-tight tracking-[-.045em]">
             <span className="bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
               {heading}
             </span>
@@ -110,10 +110,10 @@ export function AuthBrandPanel({
         </div>
         <div>
           <p className="text-xs font-medium text-foreground">
-            Trusted by recruiters
+            Built around your team
           </p>
           <p className="text-[11px] text-muted-foreground">
-            AI-scored applicants, one pipeline.
+            One pipeline. Clear next steps.
           </p>
         </div>
       </div>

@@ -114,6 +114,7 @@ function ScorecardForm({
 
   async function submit() {
     setBusy(true);
+    try {
     // ✅ EXACT contract (interview.ts Ln 175):
     // { interviewId, result: "PASSED"|"FAILED"|"PENDING", rating, feedback } — NO jobId
     const res = await submitInterviewFeedbackAction({
@@ -122,7 +123,7 @@ function ScorecardForm({
       rating,
       feedback: feedback.trim(),
     });
-    setBusy(false);
+
 
     if (res?.error) {
       toast.error(res.error);
@@ -130,7 +131,9 @@ function ScorecardForm({
       toast.success("Scorecard saved.");
       onSaved(interview.id, result, rating, feedback.trim());
     }
-  }
+
+    } catch { toast.error("Could not confirm the scorecard. Refresh the interview before trying again."); } finally { setBusy(false); }
+}
 
   return (
     <div className="space-y-2.5 rounded-xl border border-primary/20 bg-primary/5 p-3 animate-in fade-in slide-in-from-top-1 duration-200">
@@ -225,11 +228,14 @@ function InterviewerRatingWidget({
 
   async function request() {
     setBusy(true);
+    try {
     const res = await sendInterviewFeedbackLinkAction(interview.id);
-    setBusy(false);
+
     if (res?.error) toast.error(res.error);
     else toast.success(res.success ?? "Feedback link emailed to the candidate.");
-  }
+
+    } catch { toast.error("Could not confirm the feedback request. Please refresh before retrying."); } finally { setBusy(false); }
+}
 
   // ✅ Recruiter → can only REQUEST the candidate to rate (never rate themselves)
   return (
@@ -272,15 +278,18 @@ function CancelInterviewButton({
 
   async function cancel() {
     setBusy(true);
+    try {
     const res = await cancelInterviewAction(interviewId);
-    setBusy(false);
+
     if (res?.error) {
       toast.error(res.error);
     } else {
       toast.success(res.success ?? "Interview cancelled; notification queued.");
       onCancelled(interviewId);
     }
-  }
+
+    } catch { toast.error("Could not confirm cancellation. Refresh to check the interview."); } finally { setBusy(false); }
+}
 
   return (
     <div className="flex items-center gap-1 rounded-lg border border-destructive/30 bg-destructive/10 px-1.5 py-1">
@@ -321,7 +330,7 @@ export default function InterviewsPoolClient({
 
   useEffect(() => {
     (async () => {
-      const res = await getTeamAction();
+      const res = await getTeamAction().catch(() => { toast.error("Workspace details could not load. Refresh to try again."); return null; });
       if (res && !res.error) {
         setCurrentRole((res as { currentRole?: string }).currentRole ?? null);
       }
@@ -330,6 +339,7 @@ export default function InterviewsPoolClient({
 
   const loadMore = useCallback(async () => {
     setIsLoadingMore(true);
+    try {
     const nextPage = page + 1;
     const res = await getAllInterviewsAction(nextPage);
     if (res.error) {
@@ -339,8 +349,10 @@ export default function InterviewsPoolClient({
       setPage(nextPage);
       setHasMore(res.hasMore);
     }
-    setIsLoadingMore(false);
-  }, [page]);
+
+
+    } catch { toast.error("Could not load interviews. Please try again."); } finally { setIsLoadingMore(false); }
+}, [page]);
 
   const updateInterviewFeedback = useCallback(
     (id: string, result: string, rating: number, feedback: string) => {

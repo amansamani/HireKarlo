@@ -122,6 +122,7 @@ function SchedulePanel({
   async function submit() {
     if (!interviewerId || !when) return toast.error("Pick an interviewer and a time.");
     setBusy(true);
+    try {
     const selected = members.find((m) => (m.userId ?? m.id) === interviewerId);
     const res = await scheduleInterviewAction({
       applicationId,
@@ -133,13 +134,15 @@ function SchedulePanel({
       targetStage,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     });
-    setBusy(false);
+
     if (res?.error) toast.error(res.error);
     else {
       toast.success(`Interview booked — card moved to ${prettyStage(targetStage)}.`);
       onDone();
     }
-  }
+
+    } catch { toast.error("Could not confirm scheduling. Check the interview list before booking again."); } finally { setBusy(false); }
+}
 
   return (
     <div className="mt-3 space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-3 animate-in fade-in slide-in-from-top-1 duration-200">
@@ -198,12 +201,14 @@ function CandidateCard({
 
   function move(to: string) {
     startTransition(async () => {
+      try {
       const res = await updateApplicationStatusAction(app.id, to, jobId);
       if (res?.error) toast.error(res.error);
       else {
         onMove(app.id, to);
         toast.success(`${app.candidate.fullName} moved to ${prettyStage(to)}.`);
       }
+      } catch { toast.error("Could not confirm the stage change. Refresh the pipeline before retrying."); }
     });
   }
 
@@ -364,7 +369,7 @@ export default function JobPipelineClient({
 
   useEffect(() => {
     (async () => {
-      const res = await getTeamAction();
+      const res = await getTeamAction().catch(() => { toast.error("Workspace details could not load. Refresh to try again."); return null; });
       if (res && !("error" in res && res.error)) {
         setMembers(res.members ?? []);
         setCurrentRole((res as { currentRole?: string }).currentRole ?? null);
@@ -379,9 +384,9 @@ export default function JobPipelineClient({
     router.refresh();
   }
 
-  function copyPublicLink() {
-    navigator.clipboard.writeText(`${window.location.origin}/jobs/${job.id}`);
-    toast.success("Public apply link copied to clipboard.");
+  async function copyPublicLink() {
+    try { await navigator.clipboard.writeText(`${window.location.origin}/jobs/${job.id}`);
+    toast.success("Public apply link copied to clipboard."); } catch { toast.error("Clipboard access is unavailable. Open the public job page and copy its address."); }
   }
 
   return (

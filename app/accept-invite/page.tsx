@@ -19,14 +19,16 @@ function AcceptCard() {
   // ✅ FIXED — the action takes exactly ONE argument (the token string)
   async function accept() {
     setBusy(true);
+    try {
     const res = await acceptInviteAction(token);
-    setBusy(false);
     if (res?.error) toast.error(res.error);
     else {
       setDone(true);
       toast.success("Welcome to the team!");
       setTimeout(() => (window.location.href = "/dashboard"), 900);
     }
+    } catch { toast.error("Could not confirm the invitation. Open your dashboard to check before trying again."); }
+    finally { setBusy(false); }
   }
 
   return (

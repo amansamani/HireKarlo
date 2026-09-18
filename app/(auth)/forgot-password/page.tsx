@@ -28,11 +28,14 @@ export default function ForgotPasswordPage() {
 
   async function onSubmit(values: z.infer<typeof Schema>) {
     setIsLoading(true);
+    try {
     const res = await requestPasswordResetAction(values); // ✅ FIXED call
-    setIsLoading(false);
+
     if (res?.error) toast.error(res.error);
     else setSentTo(values.email);
-  }
+
+    } catch { toast.error("Could not confirm your request. Check your email or try again shortly."); } finally { setIsLoading(false); }
+}
 
   return (
     <div className="relative isolate flex min-h-dvh items-center justify-center p-6">

@@ -80,20 +80,24 @@ export default function TeamClient({
 
   const handleDisconnectCalendar = useCallback(async () => {
     setDisconnecting(true);
+    try {
     const res = await disconnectGoogleCalendarAction();
-    setDisconnecting(false);
+
     if (res.error) {
       toast.error(res.error);
     } else {
       setCalendarEmail(null);
       toast.success("Disconnected.");
     }
-  }, []);
+
+    } catch { toast.error("Could not disconnect. Check your connection and try again."); } finally { setDisconnecting(false); }
+}, []);
 
   const handleSaveBio = useCallback(async () => {
     setSavingBio(true);
+    try {
     const res = await updateMyBioAction(bioDraft);
-    setSavingBio(false);
+
     if (res.error) {
       toast.error(res.error);
     } else {
@@ -102,7 +106,9 @@ export default function TeamClient({
       );
       setEditingBio(false);
     }
-  }, [bioDraft, currentUserId]);
+
+    } catch { toast.error("Could not save your bio. Your draft is still here."); } finally { setSavingBio(false); }
+}, [bioDraft, currentUserId]);
 
   const handleInvite = useCallback(async () => {
     if (!email.includes("@")) {
@@ -110,8 +116,9 @@ export default function TeamClient({
       return;
     }
     setInviting(true);
+    try {
     const res = await inviteTeamMemberAction({ email, role });
-    setInviting(false);
+
     if (res.error) {
       toast.error(res.error);
     } else {
@@ -120,7 +127,9 @@ export default function TeamClient({
       if (savedInvite) setInvites(current => [savedInvite, ...current.filter(i => i.id !== savedInvite.id)]);
       setEmail("");
     }
-  }, [email, role]);
+
+    } catch { toast.error("Could not confirm the invitation. Refresh the invitation list before trying again."); } finally { setInviting(false); }
+}, [email, role]);
 
   const handleRevoke = useCallback(async (inviteId: string) => {
     setRemovingId(inviteId);
@@ -134,15 +143,18 @@ export default function TeamClient({
 
   const handleRemove = useCallback(async (member: Member) => {
     setRemovingId(member.id);
+    try {
     const res = await removeMemberAction(member.id);
-    setRemovingId(null);
+
     if (res.error) {
       toast.error(res.error);
     } else {
       setMembers((current) => current.filter((m) => m.id !== member.id));
       toast.success("Member removed.");
     }
-  }, []);
+
+    } catch { toast.error("Could not confirm removal. Refresh the team to check its current status."); } finally { setRemovingId(null); }
+}, []);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -186,7 +198,7 @@ export default function TeamClient({
       )}
 
       {canManage && (
-        <div className="flex items-center justify-between rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
             <div>
@@ -222,13 +234,13 @@ export default function TeamClient({
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Members ({members.length})</h3>
         {members.map((member) => (
           <div key={member.id} className="rounded-lg border border-border bg-card p-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-foreground">
                   {member.user.name ?? member.user.email}
                   {member.userId === currentUserId && <span className="ml-1.5 text-xs text-muted-foreground">(you)</span>}
                 </p>
-                <p className="text-xs text-muted-foreground">{member.user.email}</p>
+                <p className="break-all text-xs text-muted-foreground">{member.user.email}</p>
               </div>
               <div className="flex items-center gap-2">
                 {member.interviewerStats && (

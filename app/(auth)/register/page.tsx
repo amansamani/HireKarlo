@@ -83,15 +83,18 @@ export default function RegisterPage() {
 
   async function onSubmit(values: z.infer<typeof RegisterSchema>) {
     setIsLoading(true);
+    try {
     const res = await registerAction(values);
-    setIsLoading(false);
+
 
     if (res?.error) {
       toast.error(res.error);
     } else {
       setSubmittedEmail(values.email);
     }
-  }
+
+    } catch { toast.error("Could not confirm your request. Check your email or try again shortly."); } finally { setIsLoading(false); }
+}
 
   return (
     <div className="relative isolate grid min-h-dvh grid-cols-1 lg:grid-cols-2">

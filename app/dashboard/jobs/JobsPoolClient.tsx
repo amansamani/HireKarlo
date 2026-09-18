@@ -187,48 +187,37 @@ export default function JobsPoolClient({
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [isSearching, setIsSearching] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestVersion = useRef(0);
+  const loadingMore = useRef(false);
 
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
+    const version = ++requestVersion.current;
+    const timer = setTimeout(async () => {
       setIsSearching(true);
-      const res = await getAllJobsAction(
-        1,
-        searchQuery,
-        statusFilter === "ALL" ? undefined : statusFilter
-      );
-      setIsSearching(false);
-      if (res.error) {
-        toast.error(res.error);
-        return;
-      }
-      setJobs(res.jobs as GlobalJob[]);
-      setPage(1);
-      setHasMore(res.hasMore);
+      try {
+        const res = await getAllJobsAction(1, searchQuery, statusFilter === "ALL" ? undefined : statusFilter);
+        if (version !== requestVersion.current) return;
+        if (res.error) { toast.error(res.error); return; }
+        setJobs(res.jobs as GlobalJob[]);
+        setPage(1); setHasMore(res.hasMore);
+      } catch { if (version === requestVersion.current) toast.error("Search could not load. Please try again."); }
+      finally { if (version === requestVersion.current) setIsSearching(false); }
     }, 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
+    return () => { clearTimeout(timer); requestVersion.current++; };
   }, [searchQuery, statusFilter]);
 
   const loadMore = useCallback(async () => {
-    setIsLoadingMore(true);
-    const nextPage = page + 1;
-    const res = await getAllJobsAction(
-      nextPage,
-      searchQuery,
-      statusFilter === "ALL" ? undefined : statusFilter
-    );
-    if (res.error) {
-      toast.error(res.error);
-    } else {
-      setJobs((current) => [...current, ...(res.jobs as GlobalJob[])]);
-      setPage(nextPage);
-      setHasMore(res.hasMore);
-    }
-    setIsLoadingMore(false);
-  }, [page, searchQuery, statusFilter]);
+    if (loadingMore.current || isSearching) return;
+    loadingMore.current = true; setIsLoadingMore(true);
+    const version = requestVersion.current, nextPage = page + 1;
+    try {
+      const res = await getAllJobsAction(nextPage, searchQuery, statusFilter === "ALL" ? undefined : statusFilter);
+      if (version !== requestVersion.current) return;
+      if (res.error) toast.error(res.error);
+      else { setJobs(current => [...current, ...(res.jobs as GlobalJob[])]); setPage(nextPage); setHasMore(res.hasMore); }
+    } catch { if (version === requestVersion.current) toast.error("Could not load more records. Please try again."); }
+    finally { loadingMore.current = false; setIsLoadingMore(false); }
+  }, [page, searchQuery, isSearching, statusFilter]);
 
   const toggleStatus = useCallback(
     (job: GlobalJob) => {
@@ -240,6 +229,7 @@ export default function JobsPoolClient({
       );
 
       startTransition(async () => {
+        try {
         const res = await updateJobStatusAction(job.id, nextStatus);
         if (res.error) {
           setJobs((current) =>
@@ -254,7 +244,10 @@ export default function JobsPoolClient({
           );
           router.refresh();
         }
-        setUpdatingId(null);
+        } catch {
+          setJobs(current => current.map(j => j.id === job.id ? { ...j, status: job.status } : j));
+          toast.error("Could not confirm job status. Refresh before trying again.");
+        } finally { setUpdatingId(null); }
       });
     },
     [router]
@@ -264,8 +257,8 @@ export default function JobsPoolClient({
     (job: GlobalJob) => {
       setDeletingId(job.id);
       startTransition(async () => {
+        try {
         const res = await deleteJobAction(job.id);
-        setDeletingId(null);
 
         if (res.error) {
           toast.error(res.error);
@@ -274,6 +267,8 @@ export default function JobsPoolClient({
           toast.success(res.success || "Job archived.");
           router.refresh();
         }
+        } catch { toast.error("Could not confirm archive. Refresh the jobs list before trying again."); }
+        finally { setDeletingId(null); }
       });
     },
     [router]
@@ -400,7 +395,7 @@ export default function JobsPoolClient({
             size="sm"
             className="gap-2 rounded-xl text-xs font-semibold"
             onClick={loadMore}
-            disabled={isLoadingMore}
+            disabled={isLoadingMore || isSearching}
           >
             {isLoadingMore ? (
               <>
