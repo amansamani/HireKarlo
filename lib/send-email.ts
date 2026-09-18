@@ -18,8 +18,8 @@ const transporter = nodemailer.createTransport({
 
 type Attachment = { filename: string; content: string; contentType: string };
 
-export async function enqueueEmail(tx: Pick<Prisma.TransactionClient, "emailOutbox">, to: string, subject: string, html: string, attachments?: Attachment[], dedupeKey?: string) {
-  const data = { recipient: to, subject, html, ...(attachments ? { attachments } : {}), ...(dedupeKey ? { dedupeKey } : {}) };
+export async function enqueueEmail(tx: Pick<Prisma.TransactionClient, "emailOutbox">, to: string, subject: string, html: string, attachments?: Attachment[], dedupeKey?: string, expiresAt?: Date) {
+  const data = { recipient: to, subject, html, ...(attachments ? { attachments } : {}), ...(dedupeKey ? { dedupeKey } : {}), ...(expiresAt ? { expiresAt } : {}) };
   const message = dedupeKey ? await tx.emailOutbox.upsert({ where: { dedupeKey }, create: data, update: {} }) : await tx.emailOutbox.create({ data });
   return message.id;
 }
@@ -41,6 +41,10 @@ export async function deliverEmail(id: string): Promise<boolean> {
   });
   if (claimed.count !== 1) return false;
   const message = await prisma.emailOutbox.findUniqueOrThrow({ where: { id } });
+  if (message.expiresAt && message.expiresAt <= new Date()) {
+    await prisma.emailOutbox.updateMany({ where: { id, leaseToken }, data: { failedAt: new Date(), leaseUntil: null, leaseToken: null } });
+    return false;
+  }
   try {
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) throw new Error("SMTP unavailable");
     await transporter.sendMail({ from: `"HireKarlo" <${process.env.EMAIL_USER}>`, to: message.recipient, subject: message.subject, html: message.html, attachments: (message.attachments ?? undefined) as Attachment[] | undefined });

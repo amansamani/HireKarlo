@@ -29,11 +29,11 @@ import { getTeamAction } from "@/actions/team";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { pipelineStages, nextPipelineStage, isInterviewStage } from "@/lib/pipeline";
 
 const APPLIED_STAGE = "APPLIED";
 const OFFER_STAGE = "OFFER";
 const REJECTED_STAGE = "REJECTED";
-const DEFAULT_ROUND = "Interview";
 
 // ✅ Mirrors lib/roles.ts canEditPipeline — interviewers are read-only
 function canEditPipeline(role: string | null | undefined): boolean {
@@ -44,25 +44,14 @@ function prettyStage(s: string) {
   if (s === "APPLIED") return "Applied";
   if (s === "OFFER") return "Offer";
   if (s === "REJECTED") return "Rejected";
+  if (s === "HIRED") return "Hired";
   return s;
 }
 
 function isInterviewRound(stage: string) {
-  const upper = stage.toUpperCase();
-  return upper !== APPLIED_STAGE && upper !== OFFER_STAGE && upper !== REJECTED_STAGE;
+  return isInterviewStage(stage);
 }
 
-function buildStages(job: PipelineJob): string[] {
-  const customRounds = (job.interviewRounds ?? []).filter(
-    (r) => r && r.toUpperCase() !== APPLIED_STAGE && r.toUpperCase() !== OFFER_STAGE && r.toUpperCase() !== REJECTED_STAGE
-  );
-  return [
-    APPLIED_STAGE,
-    ...(customRounds.length > 0 ? customRounds : [DEFAULT_ROUND]),
-    OFFER_STAGE,
-    REJECTED_STAGE,
-  ];
-}
 
 type PipelineApplication = {
   id: string;
@@ -227,7 +216,7 @@ function CandidateCard({
 
   const idx = stages.indexOf(app.stage);
   const prev = idx > 0 ? stages[idx - 1] : null;
-  const next = idx >= 0 && idx < stages.length - 1 && app.stage !== REJECTED_STAGE ? stages[idx + 1] : null;
+  const next = nextPipelineStage(app.stage, stages);
 
   return (
     <div className="group relative rounded-xl border border-border/40 bg-card/80 backdrop-blur-sm p-3.5 shadow-sm transition-all duration-200 hover:shadow-md hover:border-border/70 hover:-translate-y-0.5">
@@ -364,8 +353,8 @@ export default function JobPipelineClient({
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [currentRole, setCurrentRole] = useState<string | null>(null);
 
-  const stages = buildStages(job);
-  const customCount = stages.length - 3;
+  const stages = pipelineStages(job.interviewRounds ?? [], applications.map(a => a.stage));
+  const customCount = stages.filter(isInterviewStage).length;
   const editable = canEditPipeline(currentRole);
 
   if (initialApplications !== syncedInitialApplications) {

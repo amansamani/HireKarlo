@@ -17,6 +17,10 @@ test.describe("authenticated workspace journey",()=>{
     await page.screenshot({path:"audit-artifacts/workspace-desktop.png",fullPage:true});
     await page.goto(`/dashboard/jobs/${process.env.E2E_JOB_ID}`); await expect(page.getByText("Browser Audit Candidate",{exact:true})).toBeVisible();
     await page.goto("/dashboard/billing"); await expect(page.getByRole("heading",{name:"Billing & usage",exact:true})).toBeVisible();
+    await expect(page.getByText("Test payments only.", { exact: false })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Payment history", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Choose Starter", exact: true })).toBeDisabled();
+    await page.screenshot({ path: "audit-artifacts/razorpay-billing.png", fullPage: true });
     await page.goto("/dashboard/interviews");await expect(page.getByLabel("Candidate experience: 4 out of 5")).toBeVisible();
     await page.getByRole("button",{name:"Open profile menu",exact:true}).click();await page.getByRole("button",{name:"Sign out",exact:true}).click();await expect(page).toHaveURL(/\/login$/);
     await page.goto("/dashboard/clients");await expect(page).toHaveURL(/\/login$/);
@@ -37,6 +41,48 @@ test.describe("authenticated workspace journey",()=>{
   test("owner cannot inspect an application pipeline without a workspace membership",async({page})=>{
     await login(page,process.env.E2E_OWNER_EMAIL!); await page.goto(`/dashboard/jobs/${process.env.E2E_OTHER_JOB_ID}`);
     await expect(page.getByText("Private Other Role",{exact:true})).toHaveCount(0); await expect(page.getByText("Pipeline not found",{exact:true})).toBeVisible();
+  });
+  test("owner can edit records, recover a stale workspace and inspect audit history", async ({ page, context }) => {
+    await login(page, process.env.E2E_OWNER_EMAIL!);
+    await context.addCookies([{ name: "hirekarlo-organization", value: "deleted-workspace", url: "http://localhost:3000", httpOnly: true }]);
+    await page.goto(`/dashboard/jobs/${process.env.E2E_JOB_ID}/edit`);
+    await page.getByLabel("Salary range", { exact: true }).fill("100000–150000");
+    await page.getByRole("button", { name: "Save opening", exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/dashboard/jobs/${process.env.E2E_JOB_ID}$`));
+    await page.getByRole("button", { name: "Hired", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Hired", exact: true })).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByText("Browser Audit Candidate", { exact: true })).toBeVisible();
+    await page.goto(`/dashboard/jobs/${process.env.E2E_JOB_ID}/edit`);
+    await expect(page.getByLabel("Salary range", { exact: true })).toHaveValue("100000–150000");
+    await page.goto("/dashboard/candidates");
+    await page.getByRole("link", { name: "Browser Audit Candidate", exact: true }).click();
+    await page.getByLabel("Recruiter notes", { exact: true }).fill("Verified browser edit");
+    await page.getByRole("button", { name: "Save profile", exact: true }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Profile saved." })).toBeVisible();
+    await page.reload();
+    await expect(page.getByLabel("Recruiter notes", { exact: true })).toHaveValue("Verified browser edit");
+    await page.goto("/dashboard/audit");
+    await expect(page.getByText("JOB_UPDATED", { exact: true })).toBeVisible();
+    await expect(page.getByText("CANDIDATE_UPDATED", { exact: true })).toBeVisible();
+    await page.goto("/dashboard/team");
+    await expect(page.getByText("Google Calendar", { exact: true })).toBeVisible();
+    const inviteEmail = `${process.env.E2E_PREFIX}-revoke@example.test`;
+    await page.getByPlaceholder("teammate@company.com").fill(inviteEmail);
+    await page.getByRole("button", { name: "Send Invite", exact: true }).click();
+    const revoke = page.getByRole("button", { name: `Revoke invitation for ${inviteEmail}`, exact: true });
+    await expect(revoke).toBeVisible();
+    await revoke.click();
+    await expect(revoke).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByText(inviteEmail, { exact: true })).toHaveCount(0);
+  });
+  test("interviewers cannot open editors or administrative audit history", async ({ page }) => {
+    await login(page, process.env.E2E_INTERVIEWER_EMAIL!);
+    await page.goto(`/dashboard/jobs/${process.env.E2E_JOB_ID}/edit`);
+    await expect(page.getByRole("button", { name: "Save opening", exact: true })).toHaveCount(0);
+    await page.goto("/dashboard/audit");
+    await expect(page.getByRole("heading", { name: "Workspace audit history", exact: true })).toHaveCount(0);
   });
 });
 test("core readiness endpoint is non-cacheable and has security headers",async({request})=>{

@@ -20,7 +20,7 @@ export default async function setup() {
     const job=await db.job.create({data:{title:"Browser Audit Role",department:"Engineering",location:"Remote",type:"Full-time",description:"Browser test fixture",userId:owner.id,organizationId:org.id}});
     const otherJob=await db.job.create({data:{title:"Private Other Role",department:"Engineering",location:"Remote",type:"Full-time",description:"Do not disclose",userId:owner.id,organizationId:other.id}});
     const candidate=await db.candidate.create({data:{fullName:"Browser Audit Candidate",email:`${prefix}-candidate@example.test`,experience:1,skills:[],organizationId:org.id,recruiterId:owner.id}});
-    const app=await db.jobApplication.create({data:{candidateId:candidate.id,jobId:job.id}});
+    const app=await db.jobApplication.create({data:{candidateId:candidate.id,jobId:job.id,stage:"OFFER"}});
     await db.interview.create({data:{applicationId:app.id,round:"Browser Assigned Round",interviewerId:interviewer.id,interviewer:"Browser Interviewer",scheduledAt:new Date(Date.now()+86400000),candidateExperienceRating:4,interviewerRating:2}});
     const hidden=await db.candidate.create({data:{fullName:"Hidden Unassigned Candidate",email:`${prefix}-hidden@example.test`,experience:1,skills:[],organizationId:org.id,recruiterId:owner.id}});
     const hiddenApp=await db.jobApplication.create({data:{candidateId:hidden.id,jobId:job.id}});

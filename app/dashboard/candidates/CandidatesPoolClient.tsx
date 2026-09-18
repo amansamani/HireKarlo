@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useState, useRef, useEffect } from "react";
 import {
   Search,
@@ -197,7 +198,7 @@ export default function CandidatesPoolClient({
                         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
                           <User className="h-4 w-4 text-primary" aria-hidden="true" />
                         </div>
-                        {candidate.fullName}
+                        <Link className="hover:underline" href={`/dashboard/candidates/${candidate.id}`}>{candidate.fullName}</Link>
                       </div>
                       <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground ml-10">
                         <Mail className="h-3 w-3" aria-hidden="true" />
@@ -263,7 +264,7 @@ export default function CandidatesPoolClient({
                           </div>
                           <div>
                             <div className="font-semibold text-foreground text-sm">
-                              {candidate.fullName}
+                              <Link className="hover:underline" href={`/dashboard/candidates/${candidate.id}`}>{candidate.fullName}</Link>
                             </div>
                             <div className="flex items-center gap-1.5 font-mono text-[11px] text-muted-foreground mt-0.5">
                               <Mail className="h-3 w-3" aria-hidden="true" />

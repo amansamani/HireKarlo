@@ -44,5 +44,5 @@ export default async function JobPipelinePage({
     interviewRounds: rawJob.interviewRounds ?? [],
   };
 
-  return <><div className="mx-auto flex max-w-7xl flex-wrap items-center gap-4 px-6 pt-4 text-sm"><p>Page {raw.page ?? 1}. Stage counts describe the applicants on this page (up to 100).</p><nav aria-label="Applicant pages" className="flex gap-4">{(raw.page ?? 1) > 1 && <Link href={`?page=${(raw.page ?? 1)-1}`}>Previous</Link>}{raw.hasMore && <Link href={`?page=${(raw.page ?? 1)+1}`}>Next</Link>}</nav></div><JobPipelineClient job={job} initialApplications={applications} /></>;
+  return <><div className="mx-auto flex max-w-7xl flex-wrap items-center gap-4 px-6 pt-4 text-sm"><p>Page {raw.page ?? 1}. Stage counts describe the applicants on this page (up to 100).</p><nav aria-label="Applicant pages" className="flex gap-4">{(raw.page ?? 1) > 1 && <Link href={`?page=${(raw.page ?? 1)-1}`}>Previous</Link>}{raw.hasMore && <Link href={`?page=${(raw.page ?? 1)+1}`}>Next</Link>}</nav></div><div className="px-6 py-3"><Link className="underline" href={`/dashboard/jobs/${id}/edit`}>Edit opening details</Link></div><JobPipelineClient job={job} initialApplications={applications} /></>;
 }

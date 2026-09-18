@@ -1,4 +1,5 @@
 "use server";
+import { hashBearerToken, bearerTokenCandidates } from "@/lib/bearer-token";
 import { logError } from "@/lib/logger";
 
 import { prisma } from "@/lib/prisma";
@@ -84,8 +85,8 @@ export async function registerAction(values: z.infer<typeof RegisterSchema>) {
       });
 
       await tx.verificationToken.deleteMany({ where: { identifier: email } });
-      await tx.verificationToken.create({ data: { identifier: email, token, expires: new Date(Date.now() + 86_400_000) } });
-      return enqueueEmail(tx, email, subject, html);
+      await tx.verificationToken.create({ data: { identifier: email, token: hashBearerToken(token), expires: new Date(Date.now() + 86_400_000) } });
+      return enqueueEmail(tx, email, subject, html, undefined, undefined, new Date(Date.now() + 86_400_000));
     });
     dispatchQueuedEmail(queuedId);
 
@@ -102,7 +103,7 @@ export async function registerAction(values: z.infer<typeof RegisterSchema>) {
 
     return {
       error:
-        "Something went wrong during registration. Check your server logs / DATABASE_URL.",
+        "We could not create your account. Please try again or contact support.",
     };
   }
 }
@@ -124,8 +125,8 @@ export async function resendVerificationAction(values: z.infer<typeof RequestRes
       const template = verifyEmailTemplate(user.name ?? "there", url);
       const queuedId = await prisma.$transaction(async tx => {
         await tx.verificationToken.deleteMany({ where: { identifier: email } });
-        await tx.verificationToken.create({ data: { identifier: email, token, expires: new Date(Date.now() + 86_400_000) } });
-        return enqueueEmail(tx, email, template.subject, template.html);
+        await tx.verificationToken.create({ data: { identifier: email, token: hashBearerToken(token), expires: new Date(Date.now() + 86_400_000) } });
+        return enqueueEmail(tx, email, template.subject, template.html, undefined, undefined, new Date(Date.now() + 86_400_000));
       });
       dispatchQueuedEmail(queuedId);
     }
@@ -158,8 +159,8 @@ export async function requestPasswordResetAction(values: z.infer<typeof RequestR
       const template = resetPasswordEmailTemplate(user.name ?? "there", resetUrl);
       const queuedId = await prisma.$transaction(async tx => {
         await tx.verificationToken.deleteMany({ where: { identifier } });
-        await tx.verificationToken.create({ data: { identifier, token, expires: new Date(Date.now() + 3_600_000) } });
-        return enqueueEmail(tx, email, template.subject, template.html);
+        await tx.verificationToken.create({ data: { identifier, token: hashBearerToken(token), expires: new Date(Date.now() + 3_600_000) } });
+        return enqueueEmail(tx, email, template.subject, template.html, undefined, undefined, new Date(Date.now() + 3_600_000));
       });
       dispatchQueuedEmail(queuedId);
     }
@@ -186,13 +187,13 @@ export async function resetPasswordAction(values: z.infer<typeof ResetPasswordSc
   const identifier = `reset-password:${email}`;
 
   try {
-    const record = await prisma.verificationToken.findUnique({
-      where: { identifier_token: { identifier, token } },
+    const record = await prisma.verificationToken.findFirst({
+      where: { identifier, token: { in: bearerTokenCandidates(token) } },
     });
 
     if (!record || record.expires < new Date()) {
       if (record) {
-        await prisma.verificationToken.delete({ where: { identifier_token: { identifier, token } } });
+        await prisma.verificationToken.delete({ where: { identifier_token: { identifier, token: record.token } } });
       }
       return { error: "This reset link is invalid or has expired. Request a new one." };
     }
@@ -200,7 +201,7 @@ export async function resetPasswordAction(values: z.infer<typeof ResetPasswordSc
     const hashedPassword = await bcrypt.hash(password, 12);
 
     await prisma.$transaction(async (tx) => {
-      const consumed = await tx.verificationToken.deleteMany({ where: { identifier, token, expires: { gt: new Date() } } });
+      const consumed = await tx.verificationToken.deleteMany({ where: { identifier, token: { in: bearerTokenCandidates(token) }, expires: { gt: new Date() } } });
       if (consumed.count !== 1) throw new Error("Reset token expired or already used");
       await tx.user.update({ where: { email }, data: { password: hashedPassword, sessionVersion: { increment: 1 } } });
     });

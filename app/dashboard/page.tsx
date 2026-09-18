@@ -24,8 +24,8 @@ type StatsData = {
 const STAT_DEFS = [
   {
     key: "totalJobs",
-    label: "Total Postings",
-    hint: "Live open job board paths",
+    label: "Open Postings",
+    hint: "Currently accepting applications",
     icon: Briefcase,
     tone: "text-chart-2 bg-chart-2/10",
     gradient: "from-chart-2/20 to-chart-2/5",
@@ -40,8 +40,8 @@ const STAT_DEFS = [
   },
   {
     key: "totalInterviews",
-    label: "Active Interviews",
-    hint: "Candidates in Tech or HR rounds",
+    label: "Upcoming Interviews",
+    hint: "Scheduled interviews for active candidates",
     icon: CalendarCheck2,
     tone: "text-warning bg-warning/10",
     gradient: "from-warning/20 to-warning/5",
@@ -49,7 +49,7 @@ const STAT_DEFS = [
   {
     key: "totalOffers",
     label: "Extended Offers",
-    hint: "Successful offers drafted",
+    hint: "Applications currently at Offer",
     icon: UserCheck,
     tone: "text-success bg-success/10",
     gradient: "from-success/20 to-success/5",
@@ -57,7 +57,7 @@ const STAT_DEFS = [
   {
     key: "totalHired",
     label: "Total Hired",
-    hint: "Candidates who accepted a role",
+    hint: "Applications marked Hired by your team",
     icon: Trophy,
     tone: "text-chart-4 bg-chart-4/10",
     gradient: "from-chart-4/20 to-chart-4/5",

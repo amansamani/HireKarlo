@@ -110,10 +110,10 @@ export default function RegisterPage() {
 
       <AuthBrandPanel
         heading="Post a job, share one link"
-        subheading="Let candidates apply without an account while AI scores every resume for you. Start your free account today."
+        subheading="Let candidates apply without an account. Review applications with your team and optional AI assistance."
         points={[
           { icon: KanbanSquare, text: "Kanban pipeline across every open role" },
-          { icon: Sparkles, text: "AI match scores on every resume" },
+          { icon: Sparkles, text: "Optional AI match scores within your allowance" },
           { icon: MailCheck, text: "Candidates notified automatically" },
         ]}
       />

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { planForPrice, stripeRequest, validWebhookSignature } from "@/lib/billing-provider";
+import { readBoundedBody } from "@/lib/bounded-body";
 
 const EventSchema = z.object({ id: z.string().startsWith("evt_"), type: z.string(), data: z.object({ object: z.object({ id: z.string(), metadata: z.record(z.string(), z.string()).optional() }) }) });
 const SubscriptionSchema = z.object({ id: z.string().startsWith("sub_"), customer: z.string().startsWith("cus_"), status: z.string(), metadata: z.object({ organizationId: z.string().min(1) }), items: z.object({ data: z.array(z.object({ current_period_end: z.number().int(), price: z.object({ id: z.string(), currency: z.string() }) })).length(1) }) });
@@ -11,7 +12,9 @@ export async function POST(request: Request) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!secret || !process.env.STRIPE_SECRET_KEY) return new NextResponse("Billing unavailable", { status: 503 });
   if (Number(request.headers.get("content-length")) > 1_000_000) return new NextResponse("Too large", { status: 413 });
-  const body = await request.text();
+  let body: string;
+  try { body = new TextDecoder().decode(await readBoundedBody(request, 1_000_000)); }
+  catch { return new NextResponse("Invalid or oversized body", { status: 413 }); }
   if (body.length > 1_000_000) return new NextResponse("Too large", { status: 413 });
   if (!validWebhookSignature(body, request.headers.get("stripe-signature"), secret)) return new NextResponse("Invalid signature", { status: 400 });
   let event;
@@ -31,6 +34,7 @@ export async function POST(request: Request) {
       const mapping = planForPrice(item.price.id);
       if (!mapping || item.price.currency !== mapping.currency.toLowerCase()) throw new Error("Unknown subscription price");
       const existing = await tx.subscription.findUnique({ where: { organizationId: orgId } });
+      if (existing?.provider === "razorpay") throw new Error("Different billing provider: requires operator review");
       if (existing && existing.providerSubscriptionId !== subscription.id && subscription.status === "canceled") {
         await tx.billingEvent.create({ data: { id: event.id } });
         return;
@@ -38,7 +42,7 @@ export async function POST(request: Request) {
       if (existing && existing.providerSubscriptionId !== subscription.id && existing.status !== "canceled") throw new Error("Conflicting subscription: requires operator review");
       const data = { providerCustomerId: subscription.customer, providerSubscriptionId: subscription.id, plan: mapping.plan, status: subscription.status, currency: mapping.currency, currentPeriodEnd: new Date(item.current_period_end * 1000) };
       await tx.subscription.upsert({ where: { organizationId: orgId }, create: { organizationId: orgId, ...data }, update: data });
-      await tx.billingCheckout.deleteMany({ where: { organizationId: orgId } });
+      await tx.billingCheckout.deleteMany({ where: { organizationId: orgId, provider: "stripe" } });
       await tx.billingEvent.create({ data: { id: event.id } });
     }, { timeout: 25_000 });
     return NextResponse.json({ received: true });

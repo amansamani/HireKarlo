@@ -10,16 +10,17 @@ export async function getRecruiterAnalyticsAction() {
   if (!ctx || !canEditPipeline(ctx.role)) return { error: "Unauthorized", stats: null };
 
   try {
-    const [totalJobs, applicationGroups] = await Promise.all([
-      prisma.job.count({ where: { organizationId: ctx.organizationId } }),
+    const [totalJobs, applicationGroups, scheduledInterviews] = await Promise.all([
+      prisma.job.count({ where: { organizationId: ctx.organizationId, status: "OPEN" } }),
       prisma.jobApplication.groupBy({
         by: ["stage"],
         where: { job: { organizationId: ctx.organizationId } },
         _count: { _all: true },
       }),
+      prisma.interview.count({ where: { scheduledAt: { gte: new Date() }, application: { job: { organizationId: ctx.organizationId }, stage: { notIn: ["HIRED", "REJECTED"] } } } }),
     ]);
 
-    let totalApplications = 0, totalOffers = 0, totalHired = 0, totalInterviews = 0;
+    let totalApplications = 0, totalOffers = 0, totalHired = 0;
 
     for (const group of applicationGroups) {
       const count = group._count._all;
@@ -27,10 +28,9 @@ export async function getRecruiterAnalyticsAction() {
       totalApplications += count;
       if (stage === "OFFER") totalOffers += count;
       else if (stage === "HIRED") totalHired += count;
-      else if (stage !== "APPLIED" && stage !== "REJECTED") totalInterviews += count;
     }
 
-    return { stats: { totalJobs, totalApplications, totalOffers, totalInterviews, totalHired } };
+    return { stats: { totalJobs, totalApplications, totalOffers, totalInterviews: scheduledInterviews, totalHired } };
   } catch (error) {
     logError("actions.analytics", error);
     return { error: "Failed to compile aggregate platform metrics.", stats: null };

@@ -74,8 +74,9 @@ describe("authentication and workflow reliability in isolated PostgreSQL",()=>{
   });
   it("accepts invitations only for the intended account and removes membership without deleting that account",async()=>{
     const email=`${prefix}-teammate@example.test`;expect((await inviteTeamMemberAction({email,role:"RECRUITER"})).success).toBeTruthy();const invite=await prisma.teamInvite.findUniqueOrThrow({where:{organizationId_email:{organizationId:orgId,email}}});
-    expect((await acceptInviteAction(invite.token)).error).toBeTruthy();const user=await prisma.user.create({data:{email,password:"unused",emailVerified:new Date()}});
-    state.ctx.userId=user.id;expect((await acceptInviteAction(invite.token)).success).toBeTruthy();expect((await acceptInviteAction(invite.token)).error).toBeTruthy();
+    const inviteMail=await prisma.emailOutbox.findFirstOrThrow({where:{recipient:email}});const rawInvite=new URL(inviteMail.html.match(/href="([^"]+)"/)![1]).searchParams.get("token")!;expect(invite.token).toMatch(/^sha256:/);
+    expect((await acceptInviteAction(rawInvite)).error).toBeTruthy();const user=await prisma.user.create({data:{email,password:"unused",emailVerified:new Date()}});
+    state.ctx.userId=user.id;expect((await acceptInviteAction(rawInvite)).success).toBeTruthy();expect((await acceptInviteAction(rawInvite)).error).toBeTruthy();
     state.ctx.userId=userId;const member=await prisma.membership.findFirstOrThrow({where:{userId:user.id,organizationId:orgId}});expect((await removeMemberAction(member.id)).success).toBeTruthy();expect(await prisma.membership.findUnique({where:{id:member.id}})).toBeNull();expect(await prisma.user.findUnique({where:{id:user.id}})).not.toBeNull();
   });
   it("persists signup, verification token and delivery intent atomically, then verifies once",async()=>{
@@ -83,7 +84,8 @@ describe("authentication and workflow reliability in isolated PostgreSQL",()=>{
     const user=await prisma.user.findUniqueOrThrow({where:{email}});expect(user.emailVerified).toBeNull(); expect(await prisma.organization.count({where:{ownerId:user.id}})).toBe(1);
     expect(await prisma.emailOutbox.count({where:{recipient:email}})).toBe(1);
     const token=await prisma.verificationToken.findFirstOrThrow({where:{identifier:email}});
-    const request=()=>new NextRequest(`http://localhost/api/auth/verify-email?email=${encodeURIComponent(email)}&token=${token.token}`);
+    const verificationMail=await prisma.emailOutbox.findFirstOrThrow({where:{recipient:email}});const rawToken=new URL(verificationMail.html.match(/href="([^"]+)"/)![1].replaceAll("&amp;","&")).searchParams.get("token")!;expect(token.token).toMatch(/^sha256:/);
+    const request=()=>new NextRequest(`http://localhost/api/auth/verify-email?email=${encodeURIComponent(email)}&token=${rawToken}`);
     const results=await Promise.all([verifyEmail(request()),verifyEmail(request())]);expect(results.filter(r=>r.headers.get("location")?.includes("verified=1"))).toHaveLength(1);
     expect((await prisma.user.findUniqueOrThrow({where:{email}})).emailVerified).not.toBeNull(); expect(await prisma.verificationToken.findUnique({where:{token:token.token}})).toBeNull();
   });

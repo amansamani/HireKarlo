@@ -16,11 +16,11 @@ export const metadata: Metadata = {
     template: "%s | HireKarlo",
   },
   description:
-    "Post a job, share one link, and let HireKarlo parse and score every applicant's resume automatically — a lightweight ATS for recruiters who want to hire faster.",
+    "Post a job, share one link, and let HireKarlo organize applications with optional AI resume review — a lightweight ATS for recruiters who want to hire faster.",
   openGraph: {
     title: "HireKarlo — AI-powered hiring pipeline",
     description:
-      "Post a job, share one link, and let HireKarlo parse and score every applicant's resume automatically.",
+      "Post a job, share one link, and let HireKarlo organize applications with optional AI resume review.",
     url: (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
     siteName: "HireKarlo",
     type: "website",
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "HireKarlo — AI-powered hiring pipeline",
     description:
-      "Post a job, share one link, and let HireKarlo parse and score every applicant's resume automatically.",
+      "Post a job, share one link, and let HireKarlo organize applications with optional AI resume review.",
     images: ["/opengraph-image"],
   },
 };

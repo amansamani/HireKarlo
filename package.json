@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "razorpay:setup": "node --experimental-strip-types scripts/setup-razorpay.mjs",
+    "razorpay:check": "node --experimental-strip-types scripts/setup-razorpay.mjs --check",
     "dev": "next dev --webpack",
     "build": "prisma generate && next build --webpack",
     "start": "next start",

@@ -1,6 +1,8 @@
-import "pdf-parse/worker";
-import { PDFParse } from "pdf-parse";
-import mammoth from "mammoth";
+// Keep parser dependencies in deployment tracing; document parsing runs only in the worker.
+import "mammoth";
+import "pdf-parse";
+import { Worker } from "node:worker_threads";
+import path from "node:path";
 import { assertSafeDocx } from "@/lib/docx-validation";
 import { getResumeDownloadUrl } from "@/lib/resume-storage";
 
@@ -23,17 +25,19 @@ export async function extractResumeText(fileUrl: string): Promise<string> {
   const buffer = Buffer.concat(chunks);
   const ext = fileUrl.split(".").pop()?.toLowerCase();
 
-  if (ext === "pdf") {
-    const parser = new PDFParse({ data: buffer });
-    try { const result = await parser.getText(); return result.text; }
-    finally { await parser.destroy(); }
-  }
-
-  if (ext === "docx") {
-    assertSafeDocx(buffer);
-    const result = await mammoth.extractRawText({ buffer });
-    return result.value;
-  }
-
-  return "";
+  if (ext !== "pdf" && ext !== "docx") return "";
+  if (ext === "docx") assertSafeDocx(buffer);
+  return new Promise<string>((resolve, reject) => {
+    const worker = new Worker(path.join(process.cwd(), "scripts/parse-resume-worker.mjs"), { workerData: { bytes: buffer, extension: ext }, resourceLimits: { maxOldGenerationSizeMb: 128, maxYoungGenerationSizeMb: 32 } });
+    let settled = false;
+    const finish = (error?: Error, text?: string) => {
+      if (settled) return; settled = true; clearTimeout(timer);
+      void worker.terminate();
+      if (error) reject(error); else resolve(text ?? "");
+    };
+    const timer = setTimeout(() => finish(new Error("Resume parsing timed out")), 10_000);
+    worker.once("message", result => typeof result?.text === "string" ? finish(undefined, result.text) : finish(new Error("Resume parsing failed")));
+    worker.once("error", () => finish(new Error("Resume parser unavailable")));
+    worker.once("exit", () => { if (!settled) finish(new Error("Resume parser stopped")); });
+  });
 }

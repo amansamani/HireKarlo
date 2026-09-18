@@ -2,33 +2,63 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/require-auth";
-import { PLANS, effectivePlan } from "@/lib/plans";
-import { checkoutAction, billingPortalAction } from "@/actions/billing";
+import { PLANS, effectivePlan, type PlanId } from "@/lib/plans";
+import { billingProvider, billingConfigured, razorpayConfigured } from "@/lib/billing-config";
+import { checkoutAction, billingPortalAction, abandonCheckoutAction, refreshBillingAction, cancelSubscriptionAction } from "@/actions/billing";
+export const maxDuration = 60;
 
-export default async function BillingPage({ searchParams }: { searchParams: Promise<{ error?: string; checkout?: string }> }) {
+export default async function BillingPage({ searchParams }: { searchParams: Promise<{ error?: string; checkout?: string; refreshed?: string; cancelled?: string }> }) {
   const ctx = await requireOrg();
   if (!ctx || !["OWNER", "ADMIN"].includes(ctx.role)) redirect("/dashboard");
   const query = await searchParams;
-  const org = await prisma.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, include: { subscription: true } });
+  const org = await prisma.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, include: { subscription: true, checkout: true } });
   const plan = effectivePlan(org.subscription, org.trialEndsAt);
   const period = plan?.trial ? "trial" : new Date().toISOString().slice(0, 7);
-  const [usage, seats, jobs, candidates] = await Promise.all([
+  const [usage, seats, jobs, candidates, payments] = await Promise.all([
     prisma.usageCounter.findUnique({ where: { organizationId_period: { organizationId: ctx.organizationId, period } } }),
     prisma.membership.count({ where: { organizationId: ctx.organizationId, role: { not: "INTERVIEWER" } } }),
     prisma.job.count({ where: { organizationId: ctx.organizationId, status: "OPEN" } }),
     prisma.candidate.count({ where: { organizationId: ctx.organizationId } }),
+    prisma.billingPayment.findMany({ where: { organizationId: ctx.organizationId }, orderBy: { paidAt: "desc" }, take: 25 }),
   ]);
-  const enabled = !!process.env.STRIPE_SECRET_KEY && !!process.env.STRIPE_WEBHOOK_SECRET;
-  return <main className="mx-auto max-w-5xl p-6">
-    <h1 className="text-3xl font-bold">Billing & usage</h1><p className="mt-2 text-muted-foreground">{org.name} · {plan?.id ?? "Plan required"}</p>
-    {query.error && <p role="alert" className="mt-5 rounded-lg border border-destructive p-4">{query.error === "owner" ? "Only the owner can manage payments." : "We couldn't open billing. Please contact support; no plan has been activated by this request."}</p>}
-    {query.checkout && <p role="status" className="mt-5 rounded-lg border border-border p-4">Checkout completed. Your plan activates after payment verification. Refresh this page shortly to see the confirmed status.</p>}
-    <p className="mt-5 text-sm">{org.subscription ? `Subscription: ${org.subscription.status}. Current period ends ${org.subscription.currentPeriodEnd.toISOString().slice(0, 10)}.` : `Trial ends ${org.trialEndsAt.toISOString().slice(0, 10)}. No automatic payment.`}</p>
-    <div className="my-7 grid grid-cols-2 gap-4 md:grid-cols-4">{[["Recruiter seats", seats, plan?.limits.seats], ["Active jobs", jobs, plan?.limits.jobs], ["Candidates", candidates, plan?.limits.candidates], ["AI attempts", usage?.aiScores ?? 0, plan?.limits.aiScores]].map(([name, used, max]) => <div key={String(name)} className="rounded-xl border border-border p-5"><p className="text-sm text-muted-foreground">{name}</p><p className="mt-2 text-2xl font-bold">{used} / {max ?? "—"}</p></div>)}</div>
-    {!enabled && <p className="mb-6 rounded-lg bg-muted p-4 text-sm">Online billing is being configured. <a className="underline" href="mailto:amanworkinfo@gmail.com?subject=HireKarlo%20subscription">Contact Aman for onboarding</a>. Contacting support does not activate a paid subscription.</p>}
-    {org.subscription && ctx.role === "OWNER" && enabled && <form action={billingPortalAction}><button className="mb-6 rounded-lg bg-primary px-5 py-3 text-primary-foreground">Manage payment method, invoices & cancellation</button></form>}
-    <div className="grid gap-4 md:grid-cols-3">{Object.entries(PLANS).map(([id, item]) => <article key={id} className="rounded-xl border border-border p-5"><h2 className="text-xl font-bold">{item.name}</h2><p className="mt-3">₹{item.inr.toLocaleString("en-IN")} / ${item.usd} monthly</p><p className="mt-3 text-sm text-muted-foreground">{item.seats} seats · {item.jobs} jobs · {item.aiScores} AI attempts</p><form action={checkoutAction} className="mt-5 space-y-3"><input name="plan" type="hidden" value={id}/><label className="block text-sm">Billing currency<select name="currency" className="mt-2 block w-full rounded border border-border bg-background p-2"><option value="INR">INR — India pricing</option><option value="USD">USD — International pricing</option></select></label><button disabled={!enabled || ctx.role !== "OWNER" || (!!org.subscription && org.subscription.status !== "canceled")} className="rounded-lg bg-primary px-4 py-2 text-primary-foreground disabled:opacity-40">Choose {item.name}</button></form></article>)}</div>
-    <p className="mt-7 text-sm text-muted-foreground">AI attempts reset at the start of each UTC calendar month on paid plans. Failed attempts can consume credits. Your trial gets 100 total attempts. Limits apply to each organization; pending recruiter invitations reserve seats. Taxes may apply. No automatic overage charges.</p>
-    <Link className="mt-5 inline-block text-primary" href="/pricing">Compare plans</Link>
+  const provider = billingProvider(), enabled = billingConfigured(), owner = ctx.role === "OWNER";
+  const razorpayAccount = org.subscription?.provider === "razorpay" || org.checkout?.provider === "razorpay";
+  const errors: Record<string, string> = {
+    owner: "Only the owner can manage payments.", pending: "An unfinished checkout exists. Resume that plan or cancel it before choosing another plan.",
+    existing: "Your workspace already has a subscription. Manage it below; contact support for a plan change.",
+    review: "Payment confirmation or reconciliation is pending. Use Refresh payment status or contact support before paying again.",
+    unavailable: "This plan is not available for checkout yet. Contact support.", confirmation: "Select the confirmation checkbox to stop renewal.",
+  };
+  const button = "rounded-lg bg-primary px-4 py-2 text-primary-foreground disabled:opacity-40";
+  return <main className="mx-auto max-w-5xl space-y-6 p-6">
+    <div><h1 className="text-3xl font-bold">Billing & usage</h1><p className="mt-2 text-muted-foreground">{org.name} · {plan?.id ?? "Plan required"}</p></div>
+    {provider === "razorpay" && process.env.RAZORPAY_MODE !== "live" && <p role="status" className="rounded-lg bg-muted p-4">Test payments only. No real money is collected. Test subscriptions apply only to this test environment.</p>}
+    {provider === "razorpay" && process.env.RAZORPAY_MODE !== "live" && <p className="text-sm text-muted-foreground">For card testing, use Razorpay’s subscription test cards. A card rejected for recurring payments must be replaced with a supported test card. <a className="text-primary underline" href="https://razorpay.com/docs/payments/subscriptions/test/" target="_blank" rel="noopener noreferrer">Subscription testing guide</a>. Once your plan is active, no additional checkout is needed.</p>}
+    {query.error && <p role="alert" className="rounded-lg border border-destructive p-4">{errors[query.error] ?? "Billing could not be updated. Check your subscription status before paying again."}</p>}
+    {query.checkout && <p role="status">Payment confirmation is pending. Your plan activates after the server verifies the payment.</p>}
+    {query.refreshed && <p role="status">Payment status checked with the provider.</p>}
+    {query.cancelled && <p role="status">Cancellation checked. See the renewal status below.</p>}
+    <p className="text-sm">{org.subscription ? "Subscription: " + (org.subscription.providerStatus || org.subscription.status) + ". " + (org.subscription.currentPeriodEnd.getTime() > 0 ? "Verified paid access through " + org.subscription.currentPeriodEnd.toISOString().slice(0, 10) + "." : "No paid period verified yet.") : "Trial ends " + org.trialEndsAt.toISOString().slice(0, 10) + ". No automatic payment."}</p>
+    {org.subscription?.cancelAtPeriodEnd && <p>Renewal is cancelled. Any remaining verified paid access stays available until its end date.</p>}
+    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">{[["Recruiter seats", seats, plan?.limits.seats], ["Active jobs", jobs, plan?.limits.jobs], ["Candidates", candidates, plan?.limits.candidates], ["AI attempts", usage?.aiScores ?? 0, plan?.limits.aiScores]].map(([name, used, max]) => <div key={String(name)} className="rounded-xl border border-border p-5"><p className="text-sm text-muted-foreground">{name}</p><p className="mt-2 text-2xl font-bold">{used} / {max ?? "—"}</p></div>)}</div>
+    {!enabled && <p className="rounded-lg bg-muted p-4 text-sm">Online billing is being configured. Contact support for onboarding. Contacting support does not activate a paid subscription.</p>}
+    {owner && razorpayAccount && razorpayConfigured() && <form action={refreshBillingAction}><button className={button}>Refresh payment status</button><p className="mt-2 text-sm text-muted-foreground">Return here after completing Razorpay checkout. This securely checks your subscription and payment.</p></form>}
+    {owner && org.subscription?.provider === "stripe" && process.env.STRIPE_SECRET_KEY && <form action={billingPortalAction}><button className={button}>Manage payment method, invoices & cancellation</button></form>}
+    {owner && org.subscription?.provider === "razorpay" && razorpayConfigured() && !org.subscription.cancelAtPeriodEnd && org.subscription.status !== "canceled" && <form action={cancelSubscriptionAction} className="space-y-3 rounded-lg border border-border p-4"><p>Stop future subscription renewals. Active subscriptions finish their current paid cycle; unpaid or delinquent subscriptions are cancelled immediately.</p><label className="flex items-center gap-2"><input name="confirm" value="yes" type="checkbox" required/> I want to stop automatic renewal</label><button className={button}>Cancel subscription renewal</button></form>}
+    {org.checkout && owner && <form action={abandonCheckoutAction} className="rounded-lg border border-border p-4"><p>Pending checkout: {org.checkout.plan ?? "Previous selection"} {org.checkout.currency}. Choose the same plan below to resume, or cancel the unpaid checkout to change your selection.</p><button className="mt-3 rounded border border-border px-4 py-2">Cancel pending checkout</button></form>}
+    <div className="grid gap-4 md:grid-cols-3">{Object.entries(PLANS).map(([id, item]) => <article key={id} className="rounded-xl border border-border p-5">
+      <h2 className="text-xl font-bold">{item.name}</h2><p className="mt-3">₹{item.inr.toLocaleString("en-IN")} {provider === "stripe" && "/ $" + item.usd} monthly</p>
+      <p className="mt-3 text-sm text-muted-foreground">{item.seats} seats · {item.jobs} jobs · {item.aiScores} AI attempts</p>
+      <form action={checkoutAction} className="mt-5 space-y-3"><input name="plan" type="hidden" value={id}/>
+        {provider === "razorpay" ? <><input name="currency" type="hidden" value="INR"/><p className="text-sm">Pay in INR through Razorpay.</p></> : <label className="block text-sm">Billing currency<select name="currency" className="mt-2 block w-full rounded border border-border bg-background p-2"><option value="INR">INR — India pricing</option><option value="USD">USD — International pricing</option></select></label>}
+        <button disabled={!enabled || !owner || (provider === "razorpay" && !razorpayConfigured(id as PlanId)) || (!!org.subscription && org.subscription.status !== "canceled")} className={button}>Choose {item.name}</button>
+      </form>
+    </article>)}</div>
+    {provider === "razorpay" && <p className="text-sm text-muted-foreground">Subscriptions renew monthly until cancelled or the 120-cycle agreement completes. The amount displayed is the configured plan charge. Contact support for plan changes, tax invoices, refunds or payment-method assistance.</p>}
+    <section className="space-y-3"><h2 className="text-xl font-semibold">Payment history</h2><p className="text-sm text-muted-foreground">{provider === "razorpay" && process.env.RAZORPAY_MODE !== "live" ? "These are simulated Test Mode transactions. A captured test payment confirms the test flow; no real money was collected." : "Latest 25 verified Razorpay payment records for this workspace."} These records are not tax invoices.</p>
+      {payments.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th className="p-2">Date (UTC)</th><th>Amount</th><th>Status</th><th>Refunded</th><th>Reference</th></tr></thead><tbody>{payments.map(payment => <tr className="border-t border-border" key={payment.id}><td className="p-2">{payment.paidAt.toISOString().slice(0, 10)}</td><td>{payment.currency} {(payment.amount / 100).toFixed(2)}</td><td>{payment.status}</td><td>{(payment.refundedAmount / 100).toFixed(2)}</td><td>{payment.providerPaymentId}</td></tr>)}</tbody></table></div> : <p>No verified payments yet.</p>}
+    </section>
+    <p className="text-sm text-muted-foreground">AI attempts reset at the start of each UTC calendar month on paid plans. Failed attempts can consume credits. Your trial gets 100 total attempts. Limits apply to each organization; pending recruiter invitations reserve seats. No automatic overage charges.</p>
+    <Link className="inline-block text-primary" href="/pricing">Compare plans</Link>
   </main>;
 }

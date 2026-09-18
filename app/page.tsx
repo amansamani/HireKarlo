@@ -58,7 +58,7 @@ export default function Home() {
       index: "02",
       label: "Scored",
       title: "Gemini reads it before you do.",
-      copy: "Every résumé is parsed server-side the moment it arrives and matched against your job description. A match score and a short AI summary land on the candidate's card — so your team can prioritize a human review.",
+      copy: "When AI review is enabled and allowance is available, resumes are queued for a match score and summary to assist your team’s human review.",
       icon: ScanSearch,
       colorClass: "text-primary",
       ringClass: "border-primary/40",
@@ -84,7 +84,7 @@ export default function Home() {
       index: "03",
       label: "Interview",
       title: "Scheduling that never leaves the dashboard.",
-      copy: "Book a round from the candidate's card and HireKarlo checks the interviewer's calendar for conflicts, creates a real Google Meet link, and emails the candidate a calendar invite — automatically.",
+      copy: "Book a round from a candidate’s card. HireKarlo checks recorded interviews in your workspace, emails a calendar invite, and can create a Google Meet link when Google Calendar is connected. External calendar availability is not checked.",
       icon: CalendarClock,
       colorClass: "text-warning",
       ringClass: "border-warning/40",
@@ -208,7 +208,7 @@ export default function Home() {
               </Reveal>
               <Reveal delay={200}>
                 <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground lg:mx-0 text-balance">
-                  Post a job, share one link, and every applicant is parsed and scored against the
+                  Post a job, share one link, and use optional AI review alongside the
                   role before you open a PDF. Review AI summaries alongside each candidate&apos;s resume.
                 </p>
               </Reveal>
@@ -371,9 +371,9 @@ export default function Home() {
           </Reveal>
           <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
             {[
-              { icon: ShieldCheck, title: "Data Isolation", copy: "Every recruiter only ever sees their own jobs and candidates — strictly enforced on every single database request." },
+              { icon: ShieldCheck, title: "Data Isolation", copy: "Hiring users share records within their workspace. Interviewers have restricted access to their assigned interviews." },
               { icon: Users2, title: "Role-Based Access", copy: "Owners, admins, recruiters, and interviewers each see exactly what their role needs and nothing more." },
-              { icon: History, title: "Full Audit Trail", copy: "Every pipeline move is permanently logged — who did what, when, and on which application." },
+              { icon: History, title: "Full Audit Trail", copy: "Pipeline changes record who made the change and when. Administrative events are available to workspace owners and admins." },
             ].map((item, i) => (
               <Reveal key={item.title} delay={i * 100}>
                 <div className="group relative h-full overflow-hidden rounded-2xl border border-border/60 bg-card/20 backdrop-blur-sm p-8 transition-all duration-300 hover:bg-card/40 hover:border-primary/30">

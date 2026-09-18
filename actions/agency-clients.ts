@@ -1,4 +1,5 @@
 "use server";
+import { recordAudit } from "@/lib/audit";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/require-auth";
@@ -16,7 +17,8 @@ export async function createAgencyClientAction(form: FormData) {
     await prisma.$transaction(async tx => {
       await lockOrganization(tx, ctx.organizationId);
       if (await tx.agencyClient.count({ where: { organizationId: ctx.organizationId } }) >= 500) throw new Error("Client limit reached");
-      await tx.agencyClient.create({ data: { organizationId: ctx.organizationId, name: input.data.name, contactEmail: input.data.contactEmail || null, notes: input.data.notes || null } });
+      const client = await tx.agencyClient.create({ data: { organizationId: ctx.organizationId, name: input.data.name, contactEmail: input.data.contactEmail || null, notes: input.data.notes || null } });
+      await recordAudit(tx, ctx, "CLIENT_CREATED", client.id);
     });
   } catch { redirect("/dashboard/clients?error=create"); }
   revalidatePath("/dashboard/clients");
@@ -39,6 +41,7 @@ export async function assignJobClientAction(form: FormData) {
       await lockOrganization(tx, ctx.organizationId);
       if (clientId && !(await tx.agencyClient.findFirst({ where: { id: clientId, organizationId: ctx.organizationId } }))) throw new Error("Client not found");
       await tx.job.update({ where: { id: jobId, organizationId: ctx.organizationId }, data: { clientId: clientId || null } });
+      await recordAudit(tx, ctx, "JOB_CLIENT_CHANGED", jobId);
     });
   } catch { redirect("/dashboard/clients?error=assign"); }
   revalidatePath("/dashboard/clients");

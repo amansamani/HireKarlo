@@ -13,9 +13,9 @@ Created and maintained by **Aman Samani** · [Author](https://amansamani.me) · 
 - Candidate pool/search/CSV, bounded applicant pages, stage history and notifications.
 - Serialized interview bookings, optional Google Calendar/Meet, reviewer feedback and single-use candidate experience ratings.
 - Agency client contacts/job assignments and durable email/AI recovery queues.
-- Optional owner-only Stripe billing with signed idempotent canonical-state webhooks. Merchant setup and actual payments remain unverified.
+- Owner-only Razorpay INR subscription billing, verified payment history, cancellation and recovery; Stripe remains optional. Signed webhooks use canonical provider state. Merchant setup and actual payments remain unverified. See [Razorpay setup](docs/razorpay-setup.md).
 
-The problem is scattered hiring records and manual screening work. The first customer is a business hiring team, not a student/job seeker. Current monthly pricing hypotheses are Starter ₹1,499/$29, Growth ₹3,999/$79 and Agency ₹7,999/$149. These are proposed prices, not measured willingness to pay. [Prior market/pricing research](docs/MARKET-AND-PRICING.md) needs validation through paid pilots/renewals before launch. No placement CRM, client portal, job-board syndication, annual billing or Razorpay integration is implemented.
+The problem is scattered hiring records and manual screening work. The first customer is a business hiring team, not a student/job seeker. Current monthly pricing hypotheses are Starter ₹1,499/$29, Growth ₹3,999/$79 and Agency ₹7,999/$149. Razorpay supports the INR prices. These are proposed prices, not measured willingness to pay. [Prior market/pricing research](docs/MARKET-AND-PRICING.md) needs validation through paid pilots/renewals before launch. No placement CRM, client portal, job-board syndication or annual billing is implemented.
 
 AI supports human judgment and can be inaccurate or manipulated. It never automatically hires/rejects candidates. Review original documents and documented job criteria before employment decisions.
 

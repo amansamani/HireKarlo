@@ -1,4 +1,5 @@
 "use server";
+import { recordAudit } from "@/lib/audit";
 import { logError } from "@/lib/logger";
 
 import { prisma } from "@/lib/prisma";
@@ -69,19 +70,23 @@ export async function updateJobStatusAction(jobId: string, status: "OPEN" | "CLO
   if (!["OPEN", "CLOSED", "FILLED"].includes(status)) return { error: "Invalid job status." };
   try {
     await prisma.$transaction(async tx => {
-    const plan = await lockOrganization(tx, ctx.organizationId);
+    // Closing a role remains available after expiry, so customers can stop intake.
+    const plan = status === "OPEN" ? await lockOrganization(tx, ctx.organizationId) : null;
+    if (!plan) await tx.$queryRaw`SELECT "id" FROM "Organization" WHERE "id" = ${ctx.organizationId} FOR UPDATE`;
     const job = await tx.job.findFirst({ where: { id: jobId, organizationId: ctx.organizationId } });
     if (!job) throw new Error("Job not found");
+    if (job.status === status) return;
     if (status === "OPEN" && job.status !== "OPEN") {
       const active = await tx.job.count({ where: { organizationId: ctx.organizationId, status: "OPEN" } });
-      if (active >= plan.limits.jobs) throw new Error("Active job limit reached");
+      if (plan && active >= plan.limits.jobs) throw new Error("Active job limit reached");
     }
     await tx.job.update({
       where: { id: jobId, organizationId: ctx.organizationId },
       data: { status },
     });
+    await recordAudit(tx, ctx, `JOB_STATUS_${status}`, jobId);
     });
-    revalidatePath("/dashboard/jobs");
+    revalidatePath("/dashboard/jobs"); revalidatePath(`/jobs/${jobId}`); revalidatePath("/dashboard");
     return { success: "Status updated." };
   } catch (error) {
     logError("actions.jobs-pool", error);
@@ -95,10 +100,12 @@ export async function deleteJobAction(jobId: string) {
   if (!canEditPipeline(ctx.role)) return { error: "Interviewers can't delete jobs." };
 
   try {
-    await prisma.job.update({
-      where: { id: jobId, organizationId: ctx.organizationId },
-      data: { status: "CLOSED" },
+    await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT "id" FROM "Organization" WHERE "id" = ${ctx.organizationId} FOR UPDATE`;
+      await tx.job.update({ where: { id: jobId, organizationId: ctx.organizationId }, data: { status: "CLOSED" } });
+      await recordAudit(tx, ctx, "JOB_ARCHIVED", jobId);
     });
+    revalidatePath(`/jobs/${jobId}`);
     revalidatePath("/dashboard/jobs");
     revalidatePath("/dashboard");
     return { success: "Job archived. Applications and audit history are retained." };

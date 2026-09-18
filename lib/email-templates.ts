@@ -1,5 +1,10 @@
 import { escapeHtml } from "@/lib/html";
 
+export function applicationReceivedEmail(name: string, job: string) {
+  const trackUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/track`;
+  return { subject: `Application received: ${job}`, html: `<p>Hi ${escapeHtml(name)},</p><p>Your application for ${escapeHtml(job)} has been received.</p><p><a href="${escapeHtml(trackUrl)}">Check your application status</a> using your email address.</p>` };
+}
+
 export function verifyEmailTemplate(name: string, verifyUrl: string) {
   name = escapeHtml(name);
   verifyUrl = escapeHtml(verifyUrl);

@@ -1,4 +1,6 @@
-"use server";
+// Internal provider helper. Never mark this module "use server": only the
+// authenticated, quota-controlled application action may queue scoring.
+import "server-only";
 
 import { z } from "zod";
 import { logError } from "@/lib/logger";

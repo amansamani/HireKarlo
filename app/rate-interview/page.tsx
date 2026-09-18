@@ -56,7 +56,7 @@ function RateForm() {
               </div>
               <h1 className="text-2xl font-bold tracking-tight">Rate your interview</h1>
               <p className="text-sm text-muted-foreground">
-                How was your experience? Your answer is confidential.
+                How was your experience? Your rating is shared with the hiring team and is not anonymous.
               </p>
             </div>
 

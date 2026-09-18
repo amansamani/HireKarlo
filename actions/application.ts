@@ -9,6 +9,7 @@ import { canEditPipeline } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { enqueueEmail, dispatchQueuedEmail } from "@/lib/send-email";
 import { stageChangeEmail } from "@/lib/email-templates";
+import { lockOrganization } from "@/lib/entitlements";
 
 const StageSchema = z.string().trim().min(1).max(60);
 
@@ -75,8 +76,10 @@ export async function updateApplicationStatusAction(applicationId: string, statu
     if (!allowedStages.includes(parsedStage.data)) return { error: "Unknown pipeline stage." };
     const { subject, html } = stageChangeEmail(currentApp.candidate.fullName, currentApp.job.title, parsedStage.data);
     const queuedId = await prisma.$transaction(async tx => {
+      await lockOrganization(tx, ctx.organizationId);
       await tx.$queryRaw`SELECT "id" FROM "JobApplication" WHERE "id" = ${applicationId} FOR UPDATE`;
       const fresh = await tx.jobApplication.findUniqueOrThrow({where:{id:applicationId},select:{stage:true}});
+      if (fresh.stage === parsedStage.data) return null;
       await tx.jobApplication.update({ where: { id: applicationId }, data: { stage: parsedStage.data } });
       await tx.activityLog.create({
         data: {
@@ -88,7 +91,7 @@ export async function updateApplicationStatusAction(applicationId: string, statu
       });
       return enqueueEmail(tx, currentApp.candidate.email, subject, html);
     });
-    dispatchQueuedEmail(queuedId);
+    if (queuedId) dispatchQueuedEmail(queuedId);
 
     revalidatePath(`/dashboard/jobs/${jobId}`);
     revalidatePath("/dashboard");

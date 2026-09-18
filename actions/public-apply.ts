@@ -7,7 +7,7 @@ import { z } from "zod";
 import { randomInt } from "crypto";
 import { queueAiScore, dispatchAiScore } from "@/lib/ai-scoring-jobs";
 import { enqueueEmail, dispatchQueuedEmail } from "@/lib/send-email";
-import { applicationOtpEmail } from "@/lib/email-templates";
+import { applicationOtpEmail, applicationReceivedEmail } from "@/lib/email-templates";
 
 import { normalizeEmail, hashApplicationCode, checkApplicationCode } from "@/lib/application-otp";
 import { allowAuthRequest } from "@/lib/rate-limit";
@@ -28,7 +28,7 @@ export async function sendApplicationOtpAction(email: string) {
     const { subject, html } = applicationOtpEmail(otp, "this role");
     const queuedId = await prisma.$transaction(async tx => {
       await tx.applicationChallenge.upsert({ where: { email: parsed.data }, create: { email: parsed.data, codeHash: hashApplicationCode(parsed.data, otp), expiresAt: new Date(Date.now() + OTP_TTL_MS) }, update: { codeHash: hashApplicationCode(parsed.data, otp), attempts: 0, expiresAt: new Date(Date.now() + OTP_TTL_MS) } });
-      return enqueueEmail(tx, parsed.data, subject, html);
+      return enqueueEmail(tx, parsed.data, subject, html, undefined, undefined, new Date(Date.now() + OTP_TTL_MS));
     });
     dispatchQueuedEmail(queuedId);
     return { success: "Verification code queued — check your inbox." };
@@ -107,7 +107,7 @@ export async function submitApplicationAction(values: z.infer<typeof Application
 
     const resumeUrl = upload.url;
 
-    const applicationId = await prisma.$transaction(async tx => {
+    const created = await prisma.$transaction(async tx => {
     const plan = await lockOrganization(tx, job.organizationId);
     const currentJob = await tx.job.findUnique({ where: { id: jobId }, select: { status: true } });
     if (currentJob?.status !== "OPEN") throw new Error("Job is closed");
@@ -148,13 +148,16 @@ export async function submitApplicationAction(values: z.infer<typeof Application
       },
     });
     if (process.env.GEMINI_API_KEY) await queueAiScore(tx, application.id);
-    return application.id;
+    const confirmation = applicationReceivedEmail(candidateName, job.title);
+    const receiptId = await enqueueEmail(tx, candidateEmail, confirmation.subject, confirmation.html, undefined, `application-received:${application.id}`);
+    return { applicationId: application.id, receiptId };
     });
-    dispatchAiScore(applicationId);
+    dispatchAiScore(created.applicationId);
+    dispatchQueuedEmail(created.receiptId);
     return { success: "Your application has been submitted successfully!" };
   } catch (error) {
     logError("actions.public-apply", error);
-    return { error: "An error occurred while submitting your application." };
+    return { error: "We couldn't accept this application. The opening or upload may have expired, or the organization may have reached its capacity. Please request a fresh code and try again or contact the hiring team." };
   }
 }
 

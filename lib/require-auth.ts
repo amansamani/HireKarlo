@@ -1,4 +1,3 @@
-"use server";
 import { logError } from "@/lib/logger";
 
 import { auth } from "@/lib/auth";
@@ -29,11 +28,21 @@ export async function requireOrg(): Promise<{ userId: string; organizationId: st
   if (!userId) return null;
 
   const organizationId = (await cookies()).get("hirekarlo-organization")?.value;
-  const membership = await prisma.membership.findFirst({
+  let membership = await prisma.membership.findFirst({
     where: { userId, ...(organizationId ? { organizationId } : {}) },
     orderBy: { createdAt: "asc" },
     select: { organizationId: true, role: true },
   });
+
+  // A stale selection must never strand a valid user after removal from a
+  // workspace or signing into another account. The fallback is still scoped
+  // to this user's persisted memberships; the cookie grants no authority.
+  if (!membership && organizationId) {
+    membership = await prisma.membership.findFirst({
+      where: { userId }, orderBy: { createdAt: "asc" },
+      select: { organizationId: true, role: true },
+    });
+  }
 
   if (!membership) {
     logError("lib.require-auth");

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { UserPlus, Loader2, Trash2, Mail, Shield, Pencil, Star, Calendar, Unlink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { inviteTeamMemberAction, removeMemberAction, updateMyBioAction, disconnectGoogleCalendarAction } from "@/actions/team";
+import { revokeInviteAction, inviteTeamMemberAction, removeMemberAction, updateMyBioAction, disconnectGoogleCalendarAction } from "@/actions/team";
 import { canManageTeam } from "@/lib/roles";
 
 type Member = {
@@ -23,6 +23,7 @@ const GOOGLE_ERROR_MESSAGES: Record<string, string> = {
   denied: "Google sign-in was cancelled.",
   no_refresh_token: "Already connected once before — remove HireKarlo's access at myaccount.google.com/permissions, then reconnect.",
   failed: "Couldn't connect Google Calendar. Try again.",
+  state_mismatch: "The connection expired or your workspace changed. Start the connection again.",
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -114,11 +115,22 @@ export default function TeamClient({
     if (res.error) {
       toast.error(res.error);
     } else {
-      toast.success("Invite sent.");
-      setInvites((current) => [{ id: crypto.randomUUID(), email, role, createdAt: new Date() }, ...current]);
+      toast.success("Invite queued.");
+      const savedInvite = res.invite;
+      if (savedInvite) setInvites(current => [savedInvite, ...current.filter(i => i.id !== savedInvite.id)]);
       setEmail("");
     }
   }, [email, role]);
+
+  const handleRevoke = useCallback(async (inviteId: string) => {
+    setRemovingId(inviteId);
+    try {
+      const result = await revokeInviteAction(inviteId);
+      if (result.error) toast.error(result.error);
+      else { setInvites(current => current.filter(i => i.id !== inviteId)); toast.success("Invitation revoked."); }
+    } catch { toast.error("Could not revoke invitation. Try again."); }
+    finally { setRemovingId(null); }
+  }, []);
 
   const handleRemove = useCallback(async (member: Member) => {
     setRemovingId(member.id);
@@ -289,6 +301,7 @@ export default function TeamClient({
               <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
                 {ROLE_LABELS[invite.role] ?? invite.role} · pending
               </span>
+              {canManage && <Button variant="outline" size="sm" disabled={removingId === invite.id} onClick={() => handleRevoke(invite.id)} aria-label={`Revoke invitation for ${invite.email}`}>Revoke</Button>}
             </div>
           ))}
         </div>

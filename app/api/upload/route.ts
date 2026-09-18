@@ -10,6 +10,7 @@ import type { UploadApiResponse } from "cloudinary";
 
 import { allowRequest } from "@/lib/rate-limit";
 import { effectivePlan } from "@/lib/plans";
+import { readBoundedBody, BodyLimitError } from "@/lib/bounded-body";
 
 const ALLOWED_TYPES: Record<string, string> = {
   "application/pdf": "pdf",
@@ -34,7 +35,8 @@ export async function POST(req: NextRequest) {
 
     if (!req.headers.get("content-type")?.startsWith("multipart/form-data")) return NextResponse.json({error:"Use multipart form data."},{status:400});
     if (Number(req.headers.get("content-length")) > MAX_SIZE + 64 * 1024) return NextResponse.json({error:"Request too large."},{status:413});
-    const formData = await req.formData();
+    const bytes = await readBoundedBody(req, MAX_SIZE + 64 * 1024);
+    const formData = await new Response(bytes, { headers: { "Content-Type": req.headers.get("content-type")! } }).formData();
     const email = z.string().trim().max(254).email().transform(normalizeEmail).safeParse(formData.get("email"));
     const otp = formData.get("otp");
     if (!email.success || typeof otp !== "string" || !(await checkApplicationCode(email.data,otp.trim()))) return NextResponse.json({error:"Verify your email before uploading."},{status:403});
@@ -111,6 +113,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ uploadId: upload.id });
   } catch (error) {
+    if (error instanceof BodyLimitError) return NextResponse.json({ error: "Request too large." }, { status: 413 });
     logError("app.api.upload.route", error);
     return NextResponse.json({ error: "Upload processing failed." }, { status: 500 });
   }

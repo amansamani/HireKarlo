@@ -1,4 +1,5 @@
 "use server";
+import { recordAudit } from "@/lib/audit";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/lib/require-auth";
@@ -10,6 +11,7 @@ export async function switchOrganizationAction(form: FormData) {
   if (!userId) throw new Error("Unauthorized");
   const membership = await prisma.membership.findUnique({ where: { organizationId_userId: { organizationId, userId } } });
   if (!membership) throw new Error("Organization not found");
+  await recordAudit(prisma, { organizationId, userId }, "WORKSPACE_SELECTED", organizationId);
   (await cookies()).set("hirekarlo-organization", organizationId, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 30 });
   revalidatePath("/dashboard", "layout");
 }

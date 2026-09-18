@@ -18,6 +18,6 @@ export default defineConfig({
     command: process.env.E2E_PRODUCTION === "true" ? "npm start" : "npm run dev",
     url: "http://localhost:3000",
     reuseExistingServer: process.env.E2E_AUDIT_DB !== "true" && !process.env.CI,
-    env: { EMAIL_USER: "", EMAIL_PASS: "", GEMINI_API_KEY: "", STRIPE_SECRET_KEY: "", STRIPE_WEBHOOK_SECRET: "" },
+    env: { EMAIL_USER: "", EMAIL_PASS: "", GEMINI_API_KEY: "", STRIPE_SECRET_KEY: "", STRIPE_WEBHOOK_SECRET: "", BILLING_PROVIDER: "razorpay", RAZORPAY_MODE: "test", RAZORPAY_KEY_ID: "", RAZORPAY_KEY_SECRET: "", RAZORPAY_WEBHOOK_SECRET: "" },
   },
 });

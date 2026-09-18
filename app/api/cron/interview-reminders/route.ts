@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
         );
         const id = await prisma.$transaction(async tx => {
           await tx.interview.update({ where: { id: interview.id }, data: { reminderSentAt: new Date() } });
-          return enqueueEmail(tx, interview.application.candidate.email, subject, html, undefined, `interview-reminder:${interview.id}`);
+          return enqueueEmail(tx, interview.application.candidate.email, subject, html, undefined, `interview-reminder:${interview.id}`, interview.scheduledAt);
         });
         dispatchQueuedEmail(id);
         sent++;

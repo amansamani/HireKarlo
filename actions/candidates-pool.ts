@@ -1,4 +1,5 @@
 "use server";
+import { recordAudit } from "@/lib/audit";
 import { logError } from "@/lib/logger";
 
 import { canEditPipeline } from "@/lib/roles";
@@ -88,6 +89,7 @@ export async function exportCandidatesCsvAction() {
     });
 
     const csv = [header.map(escape).join(","), ...lines].join("\n");
+    await recordAudit(prisma, ctx, "CANDIDATES_EXPORTED", ctx.organizationId);
     return { csv };
   } catch (error) {
     logError("actions.candidates-pool", error);

@@ -10,9 +10,9 @@ export async function GET(req: NextRequest) {
   try {
     const now = new Date();
     await prisma.aiScoringJob.updateMany({ where: { attempts: { gte: 3 }, completedAt: null, failedAt: null, leaseUntil: { lt: now } }, data: { failedAt: now, leaseUntil: null, leaseToken: null, lastErrorCode: "LEASE_EXPIRED" } });
-    const jobs = await prisma.aiScoringJob.findMany({ where: { completedAt: null, failedAt: null, attempts: { lt: 3 }, availableAt: { lte: now }, OR: [{ leaseUntil: null }, { leaseUntil: { lt: now } }] }, orderBy: { availableAt: "asc" }, take: 1, select: { applicationId: true } });
-    let completed = 0;
-    for (const job of jobs) if (await processAiScoringJob(job.applicationId)) completed++;
+    const jobs = await prisma.aiScoringJob.findMany({ where: { completedAt: null, failedAt: null, attempts: { lt: 3 }, availableAt: { lte: now }, OR: [{ leaseUntil: null }, { leaseUntil: { lt: now } }] }, orderBy: { availableAt: "asc" }, take: 2, select: { applicationId: true } });
+    const results = await Promise.all(jobs.map(job => processAiScoringJob(job.applicationId)));
+    const completed = results.filter(Boolean).length;
     return NextResponse.json({ enabled: true, checked: jobs.length, completed });
   } catch (error) { logError("ai.cron_failed", error); return NextResponse.json({ error: "Processing unavailable" }, { status: 503 }); }
 }

@@ -90,6 +90,8 @@ model Organization {
   clients     AgencyClient[]
   usageCounters UsageCounter[]
   checkout BillingCheckout?
+  razorpayAgreements RazorpayAgreement[]
+  billingPayments BillingPayment[]
 
   googleCalendarEmail String?
   googleRefreshToken  String?
@@ -281,9 +283,12 @@ model ApplicationChallenge {
 }
 
 model Subscription {
+  provider String @default("stripe")
+  providerStatus String?
+  cancelAtPeriodEnd Boolean @default(false)
   organizationId String @id
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  providerCustomerId String @unique
+  providerCustomerId String
   providerSubscriptionId String @unique
   plan String
   status String
@@ -301,11 +306,16 @@ model UsageCounter {
 }
 
 model BillingCheckout {
+  provider String @default("stripe")
   organizationId String @id
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   providerSessionId String @unique
   url String
   expiresAt DateTime
+  plan String?
+  currency String?
+  idempotencyKey String? @unique
+  requestBody String? @db.Text
 }
 
 model EmailOutbox {
@@ -322,12 +332,60 @@ model EmailOutbox {
   sentAt DateTime?
   failedAt DateTime?
   createdAt DateTime @default(now())
+  expiresAt DateTime?
   @@index([sentAt, failedAt, availableAt])
+}
+
+model AuditEvent {
+  id String @id @default(cuid())
+  organizationId String
+  actorId String
+  action String
+  targetId String
+  createdAt DateTime @default(now())
+  @@index([organizationId, createdAt])
 }
 
 model BillingEvent {
   id String @id
   processedAt DateTime @default(now())
+}
+
+model RazorpayAgreement {
+  id String @id
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan String
+  providerPlanId String
+  keyId String
+  amount Int
+  providerSubscriptionId String? @unique
+  creationAttemptedAt DateTime?
+  status String @default("creating")
+  cancelAtPeriodEnd Boolean @default(false)
+  nextSyncAt DateTime @default(now())
+  lastSyncedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([organizationId, createdAt])
+  @@index([nextSyncAt])
+}
+
+model BillingPayment {
+  id String @id
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider String
+  providerSubscriptionId String
+  providerPaymentId String
+  providerInvoiceId String
+  amount Int
+  currency String
+  status String
+  refundedAmount Int @default(0)
+  paidAt DateTime
+  updatedAt DateTime @updatedAt
+  @@unique([provider, providerPaymentId])
+  @@index([organizationId, paidAt])
 }
 
 model AgencyClient {

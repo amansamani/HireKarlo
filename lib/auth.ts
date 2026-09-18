@@ -24,8 +24,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        const current = await prisma.user.findUnique({ where: { id: user.id }, select: { sessionVersion: true } });
-        token.sessionVersion = current?.sessionVersion;
+        // Bind the session to the password snapshot that was authenticated.
+        // A reset racing with sign-in must invalidate this token, not upgrade it.
+        token.sessionVersion = (user as { sessionVersion?: number }).sessionVersion;
       }
       return token;
     },

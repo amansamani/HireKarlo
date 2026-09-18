@@ -1,5 +1,6 @@
 {
   "crons": [
+    { "path": "/api/cron/billing-reconciliation", "schedule": "* * * * *" },
     {
       "path": "/api/cron/interview-reminders",
       "schedule": "*/15 * * * *"

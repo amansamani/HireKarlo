@@ -1,4 +1,5 @@
 "use server";
+import { hashBearerToken, bearerTokenCandidates } from "@/lib/bearer-token";
 import { logError } from "@/lib/logger";
 
 import { prisma } from "@/lib/prisma";
@@ -13,6 +14,7 @@ import { randomBytes } from "crypto";
 import { decryptSecret } from "@/lib/encrypted-secret";
 import { escapeHtml } from "@/lib/html";
 import { z } from "zod";
+import { lockOrganization } from "@/lib/entitlements";
 
 const ScheduleInterviewSchema = z.object({
   applicationId: z.string().min(1),
@@ -78,7 +80,7 @@ export async function scheduleInterviewAction(data: z.infer<typeof ScheduleInter
     // Reserve the slot and notification before calling external Calendar APIs.
     let meetingLink: string | null = null, googleEventId: string | null = null;
     const reservation = await prisma.$transaction(async tx => {
-      await tx.$queryRaw`SELECT "id" FROM "Organization" WHERE "id" = ${ctx.organizationId} FOR UPDATE`;
+      await lockOrganization(tx, ctx.organizationId);
       await tx.$queryRaw`SELECT "id" FROM "JobApplication" WHERE "id" = ${data.applicationId} FOR UPDATE`;
       const fresh = await tx.jobApplication.findUniqueOrThrow({where:{id:data.applicationId},select:{stage:true}});
       if (["HIRED","REJECTED"].includes(fresh.stage)) throw new Error("TERMINAL_APPLICATION");
@@ -123,7 +125,7 @@ export async function scheduleInterviewAction(data: z.infer<typeof ScheduleInter
     });
 
 
-      const emailId = await enqueueEmail(tx, currentApp.candidate.email, subject, html, [{ filename: "interview.ics", content: ics, contentType: "text/calendar; method=PUBLISH" }], `interview-scheduled:${interview.id}`);
+      const emailId = await enqueueEmail(tx, currentApp.candidate.email, subject, html, [{ filename: "interview.ics", content: ics, contentType: "text/calendar; method=PUBLISH" }], `interview-scheduled:${interview.id}`, start);
       await tx.emailOutbox.update({ where: { id: emailId }, data: { availableAt: new Date(Date.now() + 60_000) } });
       return { interviewId: interview.id, emailId };
     });
@@ -404,7 +406,7 @@ export async function sendInterviewFeedbackLinkAction(interviewId: string) {
 
     const emailId = await prisma.$transaction(async tx => {
       await tx.verificationToken.deleteMany({ where: { identifier } });
-      await tx.verificationToken.create({ data: { identifier, token, expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) } });
+      await tx.verificationToken.create({ data: { identifier, token: hashBearerToken(token), expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) } });
       return enqueueEmail(tx,
       interview.application.candidate.email,
       `How was your ${interview.round} interview at ${interview.application.job.title}?`,
@@ -414,7 +416,7 @@ export async function sendInterviewFeedbackLinkAction(interviewId: string) {
         Please rate your experience with <strong>${escapeHtml(interview.interviewer)}</strong> — your hiring team will receive the rating.</p>
         <p><a href="${url}" style="display:inline-block;background:#3b82f6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Rate my interview</a></p>
         <p style="color:#a1a1aa;font-size:12px;">This private link expires in 7 days. Anyone with the link can submit feedback; do not share it.</p>
-      </div>`
+      </div>`, undefined, undefined, new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     );
 
     });
@@ -435,9 +437,9 @@ export async function submitInterviewExperienceRatingAction(token: string, ratin
   try {
     if (typeof token !== "string" || !token || token.length > 200) return { error: "Invalid feedback link." };
     const saved = await prisma.$transaction(async tx => {
-      const rec = await tx.verificationToken.findFirst({ where: { token, identifier: { startsWith: "interview-feedback:" }, expires: { gt: new Date() } } });
+      const rec = await tx.verificationToken.findFirst({ where: { token: { in: bearerTokenCandidates(token) }, identifier: { startsWith: "interview-feedback:" }, expires: { gt: new Date() } } });
       if (!rec) return false;
-      const claimed = await tx.verificationToken.deleteMany({ where: { token, expires: { gt: new Date() } } });
+      const claimed = await tx.verificationToken.deleteMany({ where: { token: { in: bearerTokenCandidates(token) }, expires: { gt: new Date() } } });
       if (!claimed.count) return false;
       await tx.interview.update({ where: { id: rec.identifier.slice("interview-feedback:".length) }, data: { candidateExperienceRating: rating } });
       return true;

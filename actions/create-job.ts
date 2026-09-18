@@ -1,4 +1,6 @@
 "use server";
+import { isInterviewStage } from "@/lib/pipeline";
+import { recordAudit } from "@/lib/audit";
 import { logError } from "@/lib/logger";
 
 import { lockOrganization } from "@/lib/entitlements";
@@ -14,7 +16,7 @@ const CreateJobSchema = z.object({
   location: z.string().trim().min(1, "Location is required").max(100),
   type: z.string().trim().default("Full-time"),
   description: z.string().trim().min(10, "Description must be at least 10 characters").max(20000),
-  interviewRounds: z.array(z.string().trim().min(1).max(60)).max(15).optional(),
+  interviewRounds: z.array(z.string().trim().min(1).max(60).refine(isInterviewStage, "Use an interview round name rather than a reserved pipeline stage.")).max(15).optional(),
   clientId: z.string().min(1).optional(),
 });
 
@@ -48,7 +50,7 @@ export async function createJobAction(rawData: unknown) {
         const client = await tx.agencyClient.findFirst({ where: { id: data.clientId, organizationId: ctx.organizationId } });
         if (!client) throw new Error("Client not found");
       }
-      return tx.job.create({
+      const created = await tx.job.create({
       data: {
         clientId: data.clientId,
         userId: ctx.userId,
@@ -62,6 +64,8 @@ export async function createJobAction(rawData: unknown) {
         interviewRounds,
       },
       });
+      await recordAudit(tx, ctx, "JOB_CREATED", created.id);
+      return created;
     });
 
     revalidatePath("/dashboard/jobs");
