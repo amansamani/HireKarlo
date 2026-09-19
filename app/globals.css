@@ -9,8 +9,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
     --font-display: var(--font-nura), "Nura", sans-serif;
-  --font-hand: var(--font-draytons), "ED Draytons", cursive;
-  --font-mono: var(--font-geist-mono);
+  --font-hand: var(--font-hand-loaded), "Great Vibes", cursive;  --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-display);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -53,8 +52,6 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-   --font-display: "Nura", sans-serif;
-  --font-hand: "ED Draytons", cursive;
   
 }
 
