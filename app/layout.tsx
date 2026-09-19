@@ -5,6 +5,8 @@ import localFont from "next/font/local";
 import { cn } from "@/lib/utils";
 import type { Metadata, Viewport } from "next";
 import { AnalyticsConsent } from "@/components/privacy/analytics-consent";
+import { CookieUiTweaks } from "@/components/privacy/cookie-ui-tweaks";
+
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 const nura = localFont({ src: "./fonts/Nura-Bold.woff", weight: "400", display: "swap", variable: "--font-nura" });
@@ -42,6 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Toaster theme="dark" position="top-right" closeButton richColors
           toastOptions={{ classNames: { toast: "border border-border bg-popover text-popover-foreground" } }} />
         <AnalyticsConsent />
+        <CookieUiTweaks />
       </body>
     </html>
   );

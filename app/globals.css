@@ -163,8 +163,17 @@
 .landing-hero { isolation: isolate; }
 .hero-ambient { position: absolute; pointer-events: none; z-index: -1; inset: 0; overflow: hidden; }
 .hero-ambient::before { content: ""; position: absolute; width: 65%; height: 90%; top: -25%; right: -10%; background: radial-gradient(ellipse, #b5ec7012, transparent 70%); }
-.hero-line { display: block; overflow: clip; padding-bottom: .09em; margin-bottom: -.09em; }
-.hero-line > span { display: block; }
+.hero-line {
+  display: block;
+  overflow: clip;
+  padding: 0.14em 0 0.12em;
+  margin: -0.14em 0 -0.12em;
+}
+@media (max-width: 640px) {
+  [data-cookie-floating="true"] {
+    display: none !important;
+  }
+}
 .motion-card, .workflow-frame { position: relative; isolation: isolate; }
 .motion-card { overflow: hidden; }
 [data-spotlight]::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: -1; opacity: 0; background: radial-gradient(380px circle at var(--spot-x,50%) var(--spot-y,50%), #c5ff7914, transparent 75%); transition: opacity 300ms; }

@@ -1,10 +1,11 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight, ArrowUpRight, BriefcaseBusiness, Building2, CalendarDays, Check, Fingerprint, HeartHandshake, Layers3, MoveUpRight, SearchCheck, Sparkles, Target, TrendingUp, Users, UserCheck, Quote } from "lucide-react";
 import LandingMotion from "@/components/landing/landing-motion";
 import WorkflowPreview from "@/components/landing/workflow-preview";
 import FloatingAvatars from "@/components/landing/floating-avatars";
 import AnimatedStats from "@/components/landing/animated-stats";
-
+import { CookieSettingsButton } from "@/components/privacy/cookie-settings-button";
 const personas = [
   { icon: UserCheck, title: "In-House Recruiters", description: "Manage your pipeline, track candidates, and collaborate with hiring managers in one clean workspace.", tag: "Most popular", color: "from-emerald-400 to-teal-600" },
   { icon: Building2, title: "Recruitment Agencies", description: "Handle multiple clients, manage candidate pools across jobs, and impress with professional reporting.", tag: "Growing fast", color: "from-blue-400 to-indigo-600" },
@@ -32,11 +33,19 @@ export default function Home() {
     <a href="#content" className="skip-link rounded-lg bg-primary px-4 py-3 text-primary-foreground">Skip to content</a>
 
     <header className="marketing-section flex min-h-24 items-center justify-between gap-4 border-b border-white/10 relative z-50">
-      <Link href="/" className="flex items-center gap-2.5 text-xl font-semibold tracking-tight" aria-label="HireKarlo home">
-        <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-display font-bold">h.</span>
-        <span className="font-display">HireKarlo</span>
-        <span className="text-primary">.</span>
-      </Link>
+      <Link href="/" className="flex items-center gap-2.5" aria-label="HireKarlo home">
+  <Image
+    src="/logo.webp"
+    alt="HireKarlo logo"
+    width={36}
+    height={36}
+    className="size-9 object-contain"
+    priority
+  />
+  <span className="font-display text-xl font-semibold tracking-tight">
+    HireKarlo<span className="text-primary">.</span>
+  </span>
+</Link>
       <nav className="motion-nav hidden items-center gap-7 text-xs text-muted-foreground md:flex" aria-label="Product navigation">
         <a href="#personas" className="hover:text-white">{"Who it's for"}</a>
         <a href="#workflow" className="hover:text-white">The workflow</a>
@@ -345,7 +354,18 @@ export default function Home() {
     <footer className="marketing-section border-t border-white/10 py-12">
       <div className="grid gap-10 md:grid-cols-[1.2fr_1fr_1fr_1fr]">
         <div>
-          <p className="font-display text-xl font-bold tracking-tight">HireKarlo<span className="text-primary">.</span></p>
+          <Link href="/" className="inline-flex items-center gap-2.5" aria-label="HireKarlo home">
+  <Image
+    src="/logo.webp"
+    alt="HireKarlo logo"
+    width={28}
+    height={28}
+    className="size-7 object-contain"
+  />
+  <span className="font-display text-xl font-bold tracking-tight">
+    HireKarlo<span className="text-primary">.</span>
+  </span>
+</Link>
           <p className="mt-3 text-sm text-muted-foreground max-w-xs">Built by Aman Samani. A personal SaaS portfolio project for modern hiring teams.</p>
           <div className="mt-5 flex -space-x-2">
             {["from-emerald-400 to-teal-600", "from-blue-400 to-indigo-600", "from-purple-400 to-pink-600"].map((g, i) => (
@@ -382,9 +402,12 @@ export default function Home() {
         </div>
       </div>
       <div className="mt-10 pt-6 border-t border-white/10 flex flex-col sm:flex-row justify-between gap-4 text-xs text-muted-foreground">
-        <p>© {new Date().getFullYear()} HireKarlo. All rights reserved.</p>
-        <p>Made with <span className="font-hand italic text-primary">care</span> for recruiters worldwide.</p>
-      </div>
+  <p>© {new Date().getFullYear()} HireKarlo. All rights reserved.</p>
+  <div className="flex items-center gap-6">
+    <CookieSettingsButton />
+    <p>Made with <span className="font-hand italic text-primary">care</span> for recruiters worldwide.</p>
+  </div>
+</div>
     </footer>
   </LandingMotion>;
 }

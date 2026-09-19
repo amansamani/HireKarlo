@@ -15,7 +15,7 @@ export default function WorkflowPreview() {
   const stage = stages[selected];
   return <div data-spotlight className="workflow-frame premium-panel overflow-hidden rounded-2xl sm:rounded-3xl">
     <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4 sm:px-7">
-      <div className="flex items-center gap-3"><span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-bold">h.</span><span className="text-sm font-medium">The hiring workspace</span></div>
+      <div className="flex items-center gap-3"><Image src="/logo.webp" alt="" width={32} height={32} className="size-8 rounded-lg object-contain" /><span className="text-sm font-medium">The hiring workspace</span></div>
       <span className="rounded-full border border-white/10 px-3 py-1 text-[10px] uppercase tracking-widest text-muted-foreground">Sample data</span>
     </div>
     <div className="grid lg:grid-cols-[210px_1fr]">
