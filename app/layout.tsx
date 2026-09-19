@@ -1,12 +1,14 @@
 import { Toaster } from "sonner";
 import "./globals.css";
 import { Geist } from "next/font/google";
+import localFont from "next/font/local";
 import { cn } from "@/lib/utils";
 import type { Metadata, Viewport } from "next";
 import { AnalyticsConsent } from "@/components/privacy/analytics-consent";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
-
+const nura = localFont({ src: "./fonts/Nura-Bold.woff", weight: "400", display: "swap", variable: "--font-nura" });
+const hand = localFont({ src: "./fonts/GreatVibes-Regular.woff2", weight: "400", display: "swap", variable: "--font-hand-loaded" });
 export const metadata: Metadata = {
   metadataBase: new URL((process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000")),
   title: {
@@ -35,16 +37,7 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1, them
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={cn("dark font-sans", geist.variable)}>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        {/* Bodoni Moda - elegant serif similar to Bodoni/Didot */}
-        <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;0,6..96,600;0,6..96,700;1,6..96,400;1,6..96,500&display=swap" rel="stylesheet" />
-        {/* Alex Brush - ornate script similar to Bickham Script Pro */}
-        <link href="https://fonts.googleapis.com/css2?family=Alex+Brush&display=swap" rel="stylesheet" />
-      </head>
-      <body>
+<html lang="en" className={cn("dark font-sans", geist.variable, nura.variable, hand.variable)}>      <body>
         {children}
         <Toaster theme="dark" position="top-right" closeButton richColors
           toastOptions={{ classNames: { toast: "border border-border bg-popover text-popover-foreground" } }} />
