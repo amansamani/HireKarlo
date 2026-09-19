@@ -53,10 +53,24 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  --font-display: "Bodoni Moda", serif;
+  --font-hand: "Alex Brush", cursive;
+  
 }
 
-.font-display { font-family: var(--font-display); }
-.font-hand { font-family: var(--font-hand); }
+
+
+.font-display { 
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+}
+.font-hand { 
+  font-family: var(--font-hand);
+  font-weight: 400;
+  font-style: normal;
+}
 
 :root, .dark {
   --background: oklch(0.14 0.004 285.82);

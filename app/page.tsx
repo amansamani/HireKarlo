@@ -54,87 +54,91 @@ export default function Home() {
     </header>
 
     <main id="content">
-      {/* HERO */}
-      <section className="relative overflow-hidden min-h-[90vh] flex items-center">
-        <div className="pointer-events-none absolute inset-0 hero-grid opacity-30" aria-hidden="true" />
-        <div className="hero-ambient" aria-hidden="true" />
-        <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.04] via-transparent to-transparent pointer-events-none" aria-hidden="true" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full bg-primary/[0.08] blur-[120px] pointer-events-none" aria-hidden="true" />
+      {/* HERO - Premium Editorial Style */}
+<section className="relative overflow-hidden min-h-[90vh] flex items-center">
+  <div className="pointer-events-none absolute inset-0 hero-grid opacity-20" aria-hidden="true" />
+  <div className="hero-ambient" aria-hidden="true" />
+  <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.04] via-transparent to-transparent pointer-events-none" aria-hidden="true" />
+  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full bg-primary/[0.06] blur-[120px] pointer-events-none" aria-hidden="true" />
 
-        <div className="marketing-section relative py-16 sm:py-24 w-full">
-          <div className="grid gap-12 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-8">
-            <div className="relative z-10">
-              <div className="hero-intro inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-4 py-1.5 backdrop-blur-sm">
-                <span className="relative flex size-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                  <span className="relative inline-flex size-2 rounded-full bg-primary" />
-                </span>
-                <span className="text-xs font-medium text-primary">Now with AI resume screening</span>
+  <div className="marketing-section relative py-16 sm:py-24 w-full">
+    <div className="grid gap-12 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-8">
+      <div className="relative z-10">
+        <div className="hero-intro inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-4 py-1.5 backdrop-blur-sm">
+          <span className="relative flex size-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+            <span className="relative inline-flex size-2 rounded-full bg-primary" />
+          </span>
+          <span className="text-xs font-medium text-primary tracking-wide">Elevate Your Hiring</span>
+        </div>
+
+        <h1 className="mt-7 font-display font-normal leading-[0.92] tracking-[-.02em] text-[clamp(3rem,8vw,7.5rem)]">
+          <span className="hero-line block">
+            <span className="italic text-primary">Great</span> people.
+          </span>
+          <span className="hero-line block mt-2">
+            <span className="text-gradient">Less process.</span>
+          </span>
+          <span className="hero-line block mt-2">
+            <span className="font-hand italic text-primary">More hiring.</span>
+          </span>
+        </h1>
+
+        <p className="hero-copy mt-7 max-w-lg text-base leading-8 text-[#a9afa3] sm:text-lg">
+          The workspace built for teams who appreciate the finer details of hiring.
+          Organize candidates, run interviews, and close roles with
+          <span className="font-hand text-primary italic text-xl"> elegance.</span>
+        </p>
+
+        <div className="mt-8 flex flex-wrap items-center gap-4">
+          <Link href="/register" className="motion-cta group inline-flex min-h-12 items-center gap-3 rounded-full bg-primary px-7 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90 shadow-[0_8px_30px_rgb(184,237,101,0.3)]">
+            Create your workspace
+            <ArrowUpRight className="size-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true" />
+          </Link>
+          <a href="#workflow" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/20 bg-white/5 backdrop-blur-sm px-6 text-sm font-medium hover:bg-white/10 transition-colors">
+            See how it works
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </a>
+        </div>
+
+        <div className="mt-8 flex items-center gap-6">
+          <div className="flex -space-x-2">
+            {["from-emerald-400 to-teal-600", "from-blue-400 to-indigo-600", "from-purple-400 to-pink-600", "from-amber-400 to-orange-600"].map((g, i) => (
+              <div key={i} className={`size-9 rounded-full bg-gradient-to-br ${g} border-2 border-[#0a0c09] flex items-center justify-center text-white text-[11px] font-bold`}>
+                {["SK", "MR", "LP", "JT"][i]}
               </div>
-
-              <h1 className="mt-7 font-display font-bold leading-[0.95] tracking-[-.04em] text-[clamp(2.8rem,7vw,6.5rem)]">
-                <span className="hero-line block"><span>Great people.</span></span>
-                <span className="hero-line block"><span className="text-gradient">Less process.</span></span>
-                <span className="hero-line block">
-                  <span className="font-hand italic text-primary">More hiring.</span>
-                </span>
-              </h1>
-
-              <p className="hero-copy mt-7 max-w-lg text-base leading-8 text-[#a9afa3] sm:text-lg">
-                The workspace built for in-house recruiters, agencies and hiring managers.
-                Organize candidates, run interviews, and close roles —
-                <span className="font-hand text-primary italic"> with style.</span>
-              </p>
-
-              <div className="mt-8 flex flex-wrap items-center gap-4">
-                <Link href="/register" className="motion-cta group inline-flex min-h-12 items-center gap-3 rounded-full bg-primary px-7 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90 shadow-[0_8px_30px_rgb(184,237,101,0.3)]">
-                  Create your workspace
-                  <ArrowUpRight className="size-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true" />
-                </Link>
-                <a href="#workflow" className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/20 bg-white/5 backdrop-blur-sm px-6 text-sm font-medium hover:bg-white/10 transition-colors">
-                  See how it works
-                  <ArrowRight className="size-4" aria-hidden="true" />
-                </a>
-              </div>
-
-              <div className="mt-8 flex items-center gap-6">
-                <div className="flex -space-x-2">
-                  {["from-emerald-400 to-teal-600", "from-blue-400 to-indigo-600", "from-purple-400 to-pink-600", "from-amber-400 to-orange-600"].map((g, i) => (
-                    <div key={i} className={`size-9 rounded-full bg-gradient-to-br ${g} border-2 border-[#0a0c09] flex items-center justify-center text-white text-[11px] font-bold`}>
-                      {["SK", "MR", "LP", "JT"][i]}
-                    </div>
-                  ))}
-                  <div className="size-9 rounded-full bg-white/10 border-2 border-[#0a0c09] flex items-center justify-center text-[10px] font-semibold">+2k</div>
-                </div>
-                <div>
-                  <div className="flex items-center gap-0.5">
-                    {[1,2,3,4,5].map(i => <span key={i} className="text-amber-400 text-sm">★</span>)}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">Loved by 12,000+ recruiters</p>
-                </div>
-              </div>
-
-              <p className="mt-5 text-[11px] text-muted-foreground flex items-center gap-2">
-                <Check className="size-3 text-primary" aria-hidden="true" />
-                14-day free trial · No credit card required · Cancel anytime
-              </p>
-            </div>
-
-            <div className="relative h-[420px] sm:h-[500px] lg:h-[560px]" data-parallax="0.3">
-              <FloatingAvatars />
-            </div>
-          </div>
-
-          <div data-reveal="120" className="mt-16 flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-white/10 pt-6 text-[11px] tracking-wide text-muted-foreground">
-            {["Built for in-house recruiters", "Agency-ready workspaces", "Human decisions, always", "SOC 2 compliant"].map(text => (
-              <span className="flex items-center gap-2" key={text}>
-                <Check className="size-3.5 text-primary" aria-hidden="true" />
-                {text}
-              </span>
             ))}
+            <div className="size-9 rounded-full bg-white/10 border-2 border-[#0a0c09] flex items-center justify-center text-[10px] font-semibold">+2k</div>
+          </div>
+          <div>
+            <div className="flex items-center gap-0.5">
+              {[1,2,3,4,5].map(i => <span key={i} className="text-amber-400 text-sm">★</span>)}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Loved by 12,000+ recruiters</p>
           </div>
         </div>
-      </section>
+
+        <p className="mt-5 text-[11px] text-muted-foreground flex items-center gap-2">
+          <Check className="size-3 text-primary" aria-hidden="true" />
+          14-day free trial · No credit card required · Cancel anytime
+        </p>
+      </div>
+
+      <div className="relative h-[420px] sm:h-[500px] lg:h-[560px]" data-parallax="0.3">
+        <FloatingAvatars />
+      </div>
+    </div>
+
+    <div data-reveal="120" className="mt-16 flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-white/10 pt-6 text-[11px] tracking-wide text-muted-foreground">
+      {["Built for in-house recruiters", "Agency-ready workspaces", "Human decisions, always", "SOC 2 compliant"].map(text => (
+        <span className="flex items-center gap-2" key={text}>
+          <Check className="size-3.5 text-primary" aria-hidden="true" />
+          {text}
+        </span>
+      ))}
+    </div>
+  </div>
+</section>
 
       <AnimatedStats />
 
@@ -179,17 +183,31 @@ export default function Home() {
         </div>
       </section>
 
-      {/* WORKFLOW */}
-      <section data-reveal="0" id="workflow" className="marketing-section scroll-mt-8 pb-20 sm:pb-28">
-        <div className="scroll-reveal text-center max-w-2xl mx-auto mb-12">
-          <p className="eyebrow mb-4">The workflow</p>
-          <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold tracking-[-.035em] leading-tight">
-            See the <span className="font-hand italic text-primary">whole picture</span>
-          </h2>
-          <p className="mt-5 text-base text-muted-foreground">From application to offer, every stage of hiring stays connected in one calm workspace.</p>
-        </div>
+      {/* WORKFLOW - Immersive Preview */}
+<section data-reveal="0" id="workflow" className="marketing-section scroll-mt-8 pb-20 sm:pb-28 relative overflow-hidden">
+  {/* Background enhancement */}
+  <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/[0.02] to-transparent pointer-events-none" aria-hidden="true" />
+  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/[0.04] blur-[120px] pointer-events-none" aria-hidden="true" />
+  
+  <div className="relative">
+    <div className="scroll-reveal text-center max-w-2xl mx-auto mb-12">
+      <p className="eyebrow mb-4">The workflow</p>
+      <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl font-normal leading-[0.95] tracking-[-.02em]">
+        See the <span className="font-hand italic text-primary text-6xl lg:text-7xl">whole picture</span>
+      </h2>
+      <p className="mt-5 text-base text-muted-foreground">From application to offer, every stage of hiring stays connected in one calm workspace.</p>
+    </div>
+    
+    {/* Enhanced WorkflowPreview wrapper */}
+    <div className="scroll-reveal perspective-1500">
+      <div className="relative rounded-3xl overflow-hidden shimmer-border" data-tilt="3">
         <WorkflowPreview />
-      </section>
+        {/* Premium overlay effect */}
+        <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-[#0a0c09]/20 to-transparent" aria-hidden="true" />
+      </div>
+    </div>
+  </div>
+</section>
 
       {/* FEATURES */}
       <section id="features" className="relative border-y border-white/10 bg-[#0d100b] py-20 sm:py-28 overflow-hidden">
