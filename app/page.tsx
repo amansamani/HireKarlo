@@ -38,7 +38,7 @@ export default function Home() {
         <span className="text-primary">.</span>
       </Link>
       <nav className="motion-nav hidden items-center gap-7 text-xs text-muted-foreground md:flex" aria-label="Product navigation">
-        <a href="#personas" className="hover:text-white">Who it's for</a>
+        <a href="#personas" className="hover:text-white">{"Who it's for"}</a>
         <a href="#workflow" className="hover:text-white">The workflow</a>
         <a href="#features" className="hover:text-white">Why HireKarlo</a>
         <Link href="/pricing" className="hover:text-white">Plans</Link>
@@ -145,7 +145,7 @@ export default function Home() {
           <div className="scroll-reveal text-center max-w-2xl mx-auto mb-14">
             <p className="eyebrow mb-4">Built for your role</p>
             <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold tracking-[-.035em] leading-tight">
-              Whether you're a solo recruiter
+              Whether you&apos;re a solo recruiter
               <br />
               or running an <span className="font-hand italic text-primary">agency</span>
             </h2>
@@ -308,7 +308,7 @@ export default function Home() {
                 <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.1] tracking-[-.04em]">
                   Build a team.<br />Enjoy the <span className="italic font-hand">process.</span>
                 </h2>
-                <p className="mt-5 max-w-md text-base text-[#182111]/70">Join 12,000+ recruiters and hiring teams who've made hiring feel human again.</p>
+                <p className="mt-5 max-w-md text-base text-[#182111]/70">Join 12,000+ recruiters and hiring teams who&apos;ve made hiring feel human again.</p>
               </div>
               <div>
                 <Link href="/register" className="motion-cta inline-flex min-h-14 w-full items-center justify-between gap-12 rounded-full bg-[#182111] px-8 text-base font-semibold text-white hover:bg-[#293b1c] shadow-2xl transition-all">
