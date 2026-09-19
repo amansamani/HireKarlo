@@ -1,6 +1,3 @@
-// Keep parser dependencies in deployment tracing; document parsing runs only in the worker.
-import "mammoth";
-import "pdf-parse";
 import { Worker } from "node:worker_threads";
 import path from "node:path";
 import { assertSafeDocx } from "@/lib/docx-validation";

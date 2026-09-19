@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["pdf-parse", "mammoth"],
-  outputFileTracingIncludes: { "/*": ["./scripts/parse-resume-worker.mjs", "./node_modules/pdf-parse/**/*", "./node_modules/mammoth/**/*"] },
+  outputFileTracingIncludes: { "/*": ["./scripts/parse-resume-worker.mjs", "./node_modules/pdf-parse/**/*", "./node_modules/pdfjs-dist/**/*", "./node_modules/@napi-rs/**/*", "./node_modules/mammoth/**/*"] },
   poweredByHeader: false,
   async headers() {
     return [{ source: "/(.*)", headers: [
