@@ -43,8 +43,8 @@ export function AuthBrandPanel({
           <Image
             src="/logo.webp"
             alt="HireKarlo Logo"
-            width={112}
-            height={28}
+            width={32}
+            height={32}
             className="relative h-8 w-auto object-contain"
             priority
           />

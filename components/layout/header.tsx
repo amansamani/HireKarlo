@@ -416,7 +416,7 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
         >
           <Menu className="h-5 w-5" aria-hidden="true" />
         </button>
-        <Image src="/logo.webp" alt="HireKarlo Logo" width={96} height={24} className="h-6 w-auto object-contain md:hidden" priority />
+        <Image src="/logo.webp" alt="HireKarlo Logo" width={24} height={24} className="h-6 w-auto object-contain md:hidden" priority />
         <p className="hidden text-lg font-semibold tracking-tight sm:block sm:text-xl">{pageTitle}</p>
       </div>
 

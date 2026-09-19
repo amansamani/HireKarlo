@@ -124,7 +124,7 @@ async function verifyAndSubmit(e: React.FormEvent) {
 
       <header className="mx-auto flex max-w-3xl items-center justify-between px-6 py-6">
         <Link href="/" className="flex items-center gap-2">
-          <Image src="/logo.webp" alt="HireKarlo" width={112} height={28} className="h-7 w-auto object-contain" priority />
+          <Image src="/logo.webp" alt="HireKarlo" width={28} height={28} className="h-7 w-auto object-contain" priority />
         </Link>
         <span className="flex items-center gap-1.5 rounded-full border border-border/60 bg-card/70 backdrop-blur px-3 py-1.5 text-[11px] font-medium text-muted-foreground">
           <ShieldCheck className="h-3.5 w-3.5 text-primary" /> No account needed

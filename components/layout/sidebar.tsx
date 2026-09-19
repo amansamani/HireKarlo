@@ -86,7 +86,7 @@ export default function Sidebar({
               <Image
                 src="/logo.webp"
                 alt="HireKarlo Logo"
-                width={112}
+                width={28}
                 height={28}
                 className="relative h-7 w-auto object-contain"
                 priority

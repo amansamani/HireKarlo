@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import ts from 'typescript';
 const root=path.resolve(process.argv[2]||'.');
 const inventory=[]; const warnings=[]; const imports=[];
-const ignored=new Set(['node_modules','.next','.git','.audit-db','audit-artifacts','test-results','playwright-report']);
+const ignored=new Set(['node_modules','.next','.git','.audit-db','.tmp.drivedownload','.tmp.driveupload','audit-artifacts','test-results','playwright-report']);
 function walk(folder) {
   for (const item of fs.readdirSync(folder,{withFileTypes:true})) {
     if(ignored.has(item.name)) continue;

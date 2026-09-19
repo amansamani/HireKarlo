@@ -23,3 +23,8 @@ it("reports a corrupt document without hanging the request", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => new Response("broken pdf")));
   await expect(extractResumeText("https://storage.example.test/resume.pdf")).rejects.toThrow("Resume parsing failed");
 }, 15000);
+
+it("isolates a malformed PDF that has a valid file signature", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response("%PDF-1.4\nbroken\n%%EOF")));
+  await expect(extractResumeText("https://storage.example.test/resume.pdf")).rejects.toThrow("Resume parsing failed");
+}, 15000);

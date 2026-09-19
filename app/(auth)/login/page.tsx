@@ -94,7 +94,7 @@ export default function LoginPage() {
             <Image
               src="/logo.webp"
               alt="HireKarlo Logo"
-              width={112}
+              width={28}
               height={28}
               className="h-7 w-auto object-contain"
               priority

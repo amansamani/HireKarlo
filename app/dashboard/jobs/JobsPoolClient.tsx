@@ -203,7 +203,7 @@ export default function JobsPoolClient({
       } catch { if (version === requestVersion.current) toast.error("Search could not load. Please try again."); }
       finally { if (version === requestVersion.current) setIsSearching(false); }
     }, 300);
-    return () => { clearTimeout(timer); requestVersion.current++; };
+    return () => { clearTimeout(timer); requestVersion.current = version + 1; };
   }, [searchQuery, statusFilter]);
 
   const loadMore = useCallback(async () => {
