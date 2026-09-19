@@ -1,5 +1,5 @@
 "use client";
-
+import Image from "next/image";
 import { useState } from "react";
 import { ArrowUpRight, Check, ChevronRight, Circle, SlidersHorizontal, Sparkles } from "lucide-react";
 

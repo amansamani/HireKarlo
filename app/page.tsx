@@ -64,13 +64,17 @@ export default function Home() {
 
     <main id="content">
       {/* HERO - Premium Editorial Style */}
-<section className="relative overflow-hidden min-h-[90vh] flex items-center">
-  <div className="pointer-events-none absolute inset-0 hero-grid opacity-20" aria-hidden="true" />
-  <div className="hero-ambient" aria-hidden="true" />
-  <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.04] via-transparent to-transparent pointer-events-none" aria-hidden="true" />
-  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full bg-primary/[0.06] blur-[120px] pointer-events-none" aria-hidden="true" />
+{/* HERO */}
+<section className="relative min-h-[90vh] flex items-center pt-10 pb-16 sm:pt-16 sm:pb-24">
+  {/* Background layers live in their OWN clipped wrapper — content can never be cut */}
+  <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+    <div className="absolute inset-0 hero-grid opacity-30" />
+    <div className="hero-ambient" />
+    <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.04] via-transparent to-transparent" />
+    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full bg-primary/[0.08] blur-[120px]" />
+  </div>
 
-  <div className="marketing-section relative py-16 sm:py-24 w-full">
+  <div className="marketing-section relative py-10 sm:py-16 w-full">
     <div className="grid gap-12 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-8">
       <div className="relative z-10">
         <div className="hero-intro inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-4 py-1.5 backdrop-blur-sm">
@@ -81,15 +85,16 @@ export default function Home() {
           <span className="text-xs font-medium text-primary tracking-wide">Elevate Your Hiring</span>
         </div>
 
-        <h1 className="mt-7 font-display font-normal leading-[0.92] tracking-[-.02em] text-[clamp(3rem,8vw,7.5rem)]">
+        {/* Sized so "Great people." stays on ONE line and nothing clips */}
+        <h1 className="mt-7 font-display font-normal leading-[1.04] tracking-[-.02em] text-[clamp(2.5rem,5.6vw,5.5rem)]">
           <span className="hero-line block">
-            <span className="italic text-primary">Great</span> people.
+            <span><span className="italic text-primary">Great</span> people.</span>
           </span>
-          <span className="hero-line block mt-2">
+          <span className="hero-line block">
             <span className="text-gradient">Less process.</span>
           </span>
-          <span className="hero-line block mt-2">
-            <span className="font-hand italic text-primary">More hiring.</span>
+          <span className="hero-line block">
+            <span className="font-hand italic text-primary text-[1.15em]">More hiring.</span>
           </span>
         </h1>
 
@@ -121,7 +126,7 @@ export default function Home() {
           </div>
           <div>
             <div className="flex items-center gap-0.5">
-              {[1,2,3,4,5].map(i => <span key={i} className="text-amber-400 text-sm">★</span>)}
+              {[1, 2, 3, 4, 5].map(i => <span key={i} className="text-amber-400 text-sm">★</span>)}
             </div>
             <p className="text-[11px] text-muted-foreground mt-0.5">Loved by 12,000+ recruiters</p>
           </div>
