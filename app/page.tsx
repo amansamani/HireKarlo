@@ -73,10 +73,10 @@ export default function Home() {
               </div>
 
               <h1 className="mt-7 font-display font-bold leading-[0.95] tracking-[-.04em] text-[clamp(2.8rem,7vw,6.5rem)]">
-                <span className="hero-line block"><span>Hiring,</span></span>
-                <span className="hero-line block"><span className="text-gradient">reimagined</span></span>
+                <span className="hero-line block"><span>Great people.</span></span>
+                <span className="hero-line block"><span className="text-gradient">Less process.</span></span>
                 <span className="hero-line block">
-                  for the <span className="font-hand italic text-primary">modern</span> recruiter.
+                  <span className="font-hand italic text-primary">More hiring.</span>
                 </span>
               </h1>
 
@@ -312,7 +312,7 @@ export default function Home() {
               </div>
               <div>
                 <Link href="/register" className="motion-cta inline-flex min-h-14 w-full items-center justify-between gap-12 rounded-full bg-[#182111] px-8 text-base font-semibold text-white hover:bg-[#293b1c] shadow-2xl transition-all">
-                  Create your workspace<ArrowUpRight className="size-5" aria-hidden="true" />
+                  Start hiring free<ArrowUpRight className="size-5" aria-hidden="true" />
                 </Link>
                 <Link href="/track" className="mt-6 flex items-center gap-2 text-xs text-[#182111]/70 hover:text-[#182111] transition-colors">
                   <SearchCheck className="size-4" aria-hidden="true" />Already applied? Track your application

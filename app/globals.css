@@ -186,7 +186,20 @@
   .motion-detail:hover { transform: translateX(5px); }
   .workflow-tab:hover { transform: translateY(-2px); }
 }
-
+@media (prefers-reduced-motion: reduce) {
+  .marketing-shell *, 
+  .marketing-shell *::before, 
+  .marketing-shell *::after { 
+    animation: none !important; 
+    transition: none !important; 
+  }
+  
+  /* Add this to ensure cards are visible immediately */
+  .motion-card {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
 /* ─── 3D SCROLL SYSTEM ─── */
 .scroll-reveal { opacity: 0; transform: translateY(60px) rotateX(8deg); transition: opacity 800ms cubic-bezier(0.22, 1, 0.36, 1), transform 800ms cubic-bezier(0.22, 1, 0.36, 1); }
 .scroll-reveal.is-visible { opacity: 1; transform: translateY(0) rotateX(0); }
