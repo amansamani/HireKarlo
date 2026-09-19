@@ -212,14 +212,9 @@ export default function Home() {
       <p className="mt-5 text-base text-muted-foreground">From application to offer, every stage of hiring stays connected in one calm workspace.</p>
     </div>
     
-    {/* Enhanced WorkflowPreview wrapper */}
-    <div className="scroll-reveal perspective-1500">
-      <div className="relative rounded-3xl overflow-hidden shimmer-border" data-tilt="3">
-        <WorkflowPreview />
-        {/* Premium overlay effect */}
-        <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-[#0a0c09]/20 to-transparent" aria-hidden="true" />
-      </div>
-    </div>
+    <div className="scroll-reveal">
+  <WorkflowPreview />
+</div>
   </div>
 </section>
 
