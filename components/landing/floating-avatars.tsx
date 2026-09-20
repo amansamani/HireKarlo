@@ -20,6 +20,12 @@ const avatars: Avatar[] = [
   { initials: "AN", name: "Aisha N.", role: "HR Manager", gradient: "from-rose-400 to-fuchsia-600", badge: "Verified", badgeColor: "bg-emerald-500", delay: "1.8s" },
 ];
 
+// Node (SSR) and the browser can disagree in the last digits of Math.cos/Math.sin
+// (e.g. -133.48780407186632 vs -133.48780407186635). Those digits end up in the
+// inline `style` string, which React reports as a hydration mismatch. Rounding to a
+// fixed precision makes the server and client output byte-identical.
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 export default function FloatingAvatars() {
   return (
     <div className="relative w-full h-full min-h-[420px] perspective-1000">
@@ -28,8 +34,8 @@ export default function FloatingAvatars() {
       {avatars.map((avatar, i) => {
         const angle = (i / avatars.length) * 360;
         const radius = 120 + i * 15;
-        const x = Math.cos((angle * Math.PI) / 180) * radius;
-        const y = Math.sin((angle * Math.PI) / 180) * radius;
+        const x = round2(Math.cos((angle * Math.PI) / 180) * radius);
+        const y = round2(Math.sin((angle * Math.PI) / 180) * radius);
         const size = 72 - i * 4;
         return (
           <div key={avatar.initials} className="absolute top-1/2 left-1/2 group cursor-pointer"

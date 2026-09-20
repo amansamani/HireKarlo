@@ -25,23 +25,6 @@ export async function editJobAction(form: FormData) {
   redirect(`/dashboard/jobs/${encodeURIComponent(id)}`);
 }
 
-export async function editCandidateAction(form: FormData) {
-  const ctx = await requireOrg();
-  if (!ctx || !canEditPipeline(ctx.role)) redirect("/dashboard");
-  const parsed = z.object({ id: z.string().min(1).max(100), fullName: z.string().trim().min(2).max(120), phone: z.string().trim().max(50), currentCompany: z.string().trim().max(150), experience: z.coerce.number().int().min(0).max(100), skills: z.string().max(3000), notes: z.string().trim().max(10000) }).safeParse(Object.fromEntries(form));
-  if (!parsed.success) redirect("/dashboard/candidates?error=invalid");
-  const { id, skills, ...data } = parsed.data;
-  try {
-    await prisma.$transaction(async tx => {
-      await lockOrganization(tx, ctx.organizationId);
-      await tx.candidate.update({ where: { id, organizationId: ctx.organizationId }, data: { ...data, phone: data.phone || null, currentCompany: data.currentCompany || null, notes: data.notes || null, skills: [...new Set(skills.split(",").map(s => s.trim()).filter(Boolean))].slice(0, 100) } });
-      await recordAudit(tx, ctx, "CANDIDATE_UPDATED", id);
-    });
-  } catch { redirect(`/dashboard/candidates/${encodeURIComponent(id)}?error=save`); }
-  revalidatePath("/dashboard/candidates"); revalidatePath(`/dashboard/candidates/${id}`);
-  redirect(`/dashboard/candidates/${encodeURIComponent(id)}?saved=1`);
-}
-
 export async function renameOrganizationAction(form: FormData) {
   const ctx = await requireOrg();
   if (!ctx || !canManageTeam(ctx.role)) redirect("/dashboard");

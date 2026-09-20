@@ -39,7 +39,8 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1, them
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-<html lang="en" className={cn("dark font-sans", geist.variable, nura.variable, hand.variable)}>      <body>
+    <html lang="en" className={cn("dark font-sans", geist.variable, nura.variable, hand.variable)}>
+      <body>
         {children}
         <Toaster theme="dark" position="top-right" closeButton richColors
           toastOptions={{ classNames: { toast: "border border-border bg-popover text-popover-foreground" } }} />

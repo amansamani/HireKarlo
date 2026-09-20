@@ -8,7 +8,7 @@ test.describe("authenticated workspace journey",()=>{
     await rejectAnalytics.click();
     await expect(rejectAnalytics).toHaveCount(0);
     await page.getByPlaceholder("recruiter@company.com").fill(email); await page.getByPlaceholder("••••••••").fill(process.env.E2E_PASSWORD!);
-    await page.getByRole("button",{name:"Sign In",exact:true}).click(); await expect(page).toHaveURL(/\/dashboard(?:\?.*)?$/);
+    await page.getByRole("button",{name:"Sign In",exact:true}).click(); await expect(page,"Sign-in should reach the dashboard (a \"Too many login attempts\" toast means the per-email login rate limit was hit)").toHaveURL(/\/dashboard(?:\?.*)?$/);
   }
   test("owner session survives refresh and can add a client and open a pipeline",async({page})=>{
     await login(page,process.env.E2E_OWNER_EMAIL!); await page.reload(); await expect(page).toHaveURL(/\/dashboard/);
@@ -42,7 +42,7 @@ test.describe("authenticated workspace journey",()=>{
     await login(page,process.env.E2E_OWNER_EMAIL!); await page.goto(`/dashboard/jobs/${process.env.E2E_OTHER_JOB_ID}`);
     await expect(page.getByText("Private Other Role",{exact:true})).toHaveCount(0); await expect(page.getByText("Pipeline not found",{exact:true})).toBeVisible();
   });
-  test("owner can edit records, recover a stale workspace and inspect audit history", async ({ page, context }) => {
+  test("owner can edit an opening, recover a stale workspace and inspect audit history", async ({ page, context }) => {
     await login(page, process.env.E2E_OWNER_EMAIL!);
     await context.addCookies([{ name: "hirekarlo-organization", value: "deleted-workspace", url: "http://localhost:3000", httpOnly: true }]);
     await page.goto(`/dashboard/jobs/${process.env.E2E_JOB_ID}/edit`);
@@ -57,14 +57,14 @@ test.describe("authenticated workspace journey",()=>{
     await expect(page.getByLabel("Salary range", { exact: true })).toHaveValue("100000–150000");
     await page.goto("/dashboard/candidates");
     await page.getByRole("link", { name: "Browser Audit Candidate", exact: true }).click();
-    await page.getByLabel("Recruiter notes", { exact: true }).fill("Verified browser edit");
-    await page.getByRole("button", { name: "Save profile", exact: true }).click();
-    await expect(page.getByRole("status").filter({ hasText: "Profile saved." })).toBeVisible();
-    await page.reload();
-    await expect(page.getByLabel("Recruiter notes", { exact: true })).toHaveValue("Verified browser edit");
+    // Candidate profiles are read-only by design (the data is submitted by the candidate):
+    // hiring staff can open the record but must not get any edit controls.
+    await expect(page.getByRole("heading", { name: "Browser Audit Candidate", exact: true })).toBeVisible();
+    await expect(page.getByText("View only", { exact: false })).toBeVisible();
+    await expect(page.getByLabel("Recruiter notes", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Save profile", exact: true })).toHaveCount(0);
     await page.goto("/dashboard/audit");
     await expect(page.getByText("JOB_UPDATED", { exact: true })).toBeVisible();
-    await expect(page.getByText("CANDIDATE_UPDATED", { exact: true })).toBeVisible();
     await page.goto("/dashboard/team");
     await expect(page.getByText("Google Calendar", { exact: true })).toBeVisible();
     const inviteEmail = `${process.env.E2E_PREFIX}-revoke@example.test`;

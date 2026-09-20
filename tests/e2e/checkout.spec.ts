@@ -3,7 +3,7 @@ test.describe("subscription checkout return", () => {
   test.skip(process.env.E2E_AUDIT_DB !== "true", "Requires isolated local database fixtures");
   async function login(page: Page) {
     await page.goto("/login"); await page.getByRole("button", { name: "Reject analytics", exact: true }).click();
-    await page.getByPlaceholder("recruiter@company.com").fill(process.env.E2E_OWNER_EMAIL!);
+    await page.getByPlaceholder("recruiter@company.com").fill(process.env.E2E_BILLING_OWNER_EMAIL!);
     await page.getByPlaceholder("••••••••").fill(process.env.E2E_PASSWORD!);
     await page.getByRole("button", { name: "Sign In", exact: true }).click(); await expect(page).toHaveURL(/\/dashboard/);
   }
