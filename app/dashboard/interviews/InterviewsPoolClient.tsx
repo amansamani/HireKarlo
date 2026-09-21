@@ -13,6 +13,7 @@ import {
   HeartHandshake,
   CalendarClock,
   ClipboardCheck,
+  UserX,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,8 @@ import { getAllInterviewsAction } from "@/actions/interviews-pool";
 import {
   submitInterviewFeedbackAction,
   cancelInterviewAction,
-  sendInterviewFeedbackLinkAction
+  sendInterviewFeedbackLinkAction,
+  reviewFailedInterviewAction,
 } from "@/actions/interview";
 import { getTeamAction } from "@/actions/team";
 import { toast } from "sonner";
@@ -38,6 +40,8 @@ type GlobalInterview = {
   result: string | null;
   rating: number | null;
   feedback: string | null;
+  reviewStatus: string | null;
+  reviewNote: string | null;
   application: {
     job: { id: string; title: string };
     candidate: { fullName: string; email: string };
@@ -56,13 +60,108 @@ function prettyResult(result: string | null) {
   return result ?? "—";
 }
 
+/* ───────────────────── Recruiter decision on a failed round ───────────────────── */
+// The interviewer only assesses. A "Failed" scorecard does NOT reject the candidate: it opens this
+// decision for the recruiter/owner, who either confirms the rejection (candidate is moved to
+// Rejected and emailed) or overrides it and routes the card manually.
+function ReviewGate({
+  interview,
+  canDecide,
+  onDecided,
+}: {
+  interview: GlobalInterview;
+  canDecide: boolean;
+  onDecided: (id: string, status: string, note: string | null) => void;
+}) {
+  const [step, setStep] = useState<"idle" | "confirming" | "overriding">("idle");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const status = interview.reviewStatus;
+
+  if (status === "REJECTION_CONFIRMED") {
+    return <p className="text-[11px] text-muted-foreground">Rejection confirmed — the candidate was moved to Rejected and notified.</p>;
+  }
+  if (status === "OVERRIDDEN") {
+    return (
+      <p className="text-[11px] text-muted-foreground">
+        A recruiter overrode this result.{canDecide && interview.reviewNote ? ` Note: ${interview.reviewNote}` : ""}
+      </p>
+    );
+  }
+  if (status !== "PENDING_REVIEW") return null;
+  if (!canDecide) {
+    return <p className="text-[11px] text-muted-foreground">Awaiting recruiter decision. The candidate has not been contacted.</p>;
+  }
+
+  async function decide(decision: "CONFIRM_REJECTION" | "OVERRIDE") {
+    setBusy(true);
+    try {
+      const res = await reviewFailedInterviewAction({ interviewId: interview.id, decision, note: note.trim() || undefined });
+      if (res?.error) toast.error(res.error);
+      else {
+        toast.success(res.success ?? "Decision recorded.");
+        onDecided(interview.id, decision === "CONFIRM_REJECTION" ? "REJECTION_CONFIRMED" : "OVERRIDDEN", note.trim() || null);
+      }
+    } catch { toast.error("Could not confirm the decision. Refresh the interview before retrying."); } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="space-y-2 rounded-xl border border-warning/30 bg-warning/5 p-3">
+      <p className="flex items-center gap-1.5 text-[11px] font-bold text-warning">
+        <UserX className="h-3.5 w-3.5" aria-hidden="true" /> Decision needed
+      </p>
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
+        The interviewer marked this round as Failed. The candidate has not been contacted.
+      </p>
+      {step === "idle" ? (
+        <div className="flex gap-1.5">
+          <Button size="sm" variant="destructive" onClick={() => setStep("confirming")} className="h-8 flex-1 rounded-lg text-[11px]">Confirm rejection</Button>
+          <Button size="sm" variant="outline" onClick={() => setStep("overriding")} className="h-8 flex-1 rounded-lg text-[11px]">Override</Button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <Input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            maxLength={1000}
+            placeholder={step === "confirming" ? "Internal note (optional)…" : "Why keep them in the pipeline? (optional)"}
+            aria-label="Decision note"
+            className="h-9 rounded-lg bg-background/70 text-xs"
+          />
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            {step === "confirming"
+              ? "Moves the candidate to Rejected, cancels any upcoming rounds and emails them."
+              : "The candidate is not emailed. Move them or book a re-interview from the pipeline."}
+          </p>
+          <div className="flex gap-1.5">
+            <Button
+              size="sm"
+              variant={step === "confirming" ? "destructive" : "default"}
+              disabled={busy}
+              onClick={() => decide(step === "confirming" ? "CONFIRM_REJECTION" : "OVERRIDE")}
+              className="h-8 flex-1 rounded-lg text-[11px]"
+            >
+              {busy ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : step === "confirming" ? "Reject & notify candidate" : "Keep in pipeline"}
+            </Button>
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => setStep("idle")} className="h-8 rounded-lg text-[11px]">Back</Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ───────────────────────── Scorecard ───────────────────────── */
 function ScorecardForm({
   interview,
+  canDecide,
   onSaved,
+  onDecided,
 }: {
   interview: GlobalInterview;
-  onSaved: (id: string, result: string, rating: number, feedback: string) => void;
+  canDecide: boolean;
+  onSaved: (id: string, result: string, rating: number, feedback: string, reviewStatus: string | null) => void;
+  onDecided: (id: string, status: string, note: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   // ✅ UPPERCASE — matches interview.ts: "PASSED" | "FAILED" | "PENDING"
@@ -71,12 +170,14 @@ function ScorecardForm({
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // Already submitted → read-only summary
+  // Already submitted → read-only summary (the scorecard is immutable once saved)
   if (interview.result) {
+    const failed = interview.result === "FAILED";
     return (
-      <div className="space-y-1.5 rounded-xl border border-success/20 bg-success/5 p-3">
+      <div className="space-y-2">
+      <div className={cn("space-y-1.5 rounded-xl border p-3", failed ? "border-destructive/20 bg-destructive/5" : "border-success/20 bg-success/5")}>
         <div className="flex items-center justify-between">
-          <span className="flex items-center gap-1.5 text-[11px] font-bold text-success">
+          <span className={cn("flex items-center gap-1.5 text-[11px] font-bold", failed ? "text-destructive" : "text-success")}>
             <ClipboardCheck className="h-3.5 w-3.5" aria-hidden="true" />
             Result: {prettyResult(interview.result)}
           </span>
@@ -96,6 +197,8 @@ function ScorecardForm({
         {interview.feedback && (
           <p className="text-[11px] leading-relaxed text-muted-foreground">{interview.feedback}</p>
         )}
+      </div>
+      {failed && <ReviewGate interview={interview} canDecide={canDecide} onDecided={onDecided} />}
       </div>
     );
   }
@@ -128,8 +231,8 @@ function ScorecardForm({
     if (res?.error) {
       toast.error(res.error);
     } else {
-      toast.success("Scorecard saved.");
-      onSaved(interview.id, result, rating, feedback.trim());
+      toast.success(res.success ?? "Scorecard saved.");
+      onSaved(interview.id, result, rating, feedback.trim(), res.reviewStatus ?? null);
     }
 
     } catch { toast.error("Could not confirm the scorecard. Refresh the interview before trying again."); } finally { setBusy(false); }
@@ -355,13 +458,17 @@ export default function InterviewsPoolClient({
 }, [page]);
 
   const updateInterviewFeedback = useCallback(
-    (id: string, result: string, rating: number, feedback: string) => {
+    (id: string, result: string, rating: number, feedback: string, reviewStatus: string | null) => {
       setInterviews((current) =>
-        current.map((i) => (i.id === id ? { ...i, result, rating, feedback } : i))
+        current.map((i) => (i.id === id ? { ...i, result, rating, feedback, reviewStatus } : i))
       );
     },
     []
   );
+
+  const updateInterviewReview = useCallback((id: string, reviewStatus: string, reviewNote: string | null) => {
+    setInterviews((current) => current.map((i) => (i.id === id ? { ...i, reviewStatus, reviewNote } : i)));
+  }, []);
 
   const removeCancelledInterview = useCallback((id: string) => {
     setInterviews((current) => current.filter((i) => i.id !== id));
@@ -483,7 +590,7 @@ export default function InterviewsPoolClient({
                 )}
 
                 {/* Interviewer scorecard + candidate-facing interviewer rating */}
-                <ScorecardForm interview={interview} onSaved={updateInterviewFeedback} />
+                <ScorecardForm interview={interview} canDecide={canManageInterviews(currentRole)} onSaved={updateInterviewFeedback} onDecided={updateInterviewReview} />
                 {canManageInterviews(currentRole) && <InterviewerRatingWidget
                   interview={interview}
                   canEdit={true}

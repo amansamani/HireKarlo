@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireOrg, requireAuth } from "@/lib/require-auth";
 import { revalidatePath } from "next/cache";
 import { enqueueEmail, dispatchQueuedEmail } from "@/lib/send-email";
-import { interviewScheduledEmail, interviewCancelledEmail } from "@/lib/email-templates";
+import { interviewScheduledEmail, interviewCancelledEmail, interviewFailedRecruiterEmail, stageChangeEmail } from "@/lib/email-templates";
 import { generateInterviewICS } from "@/lib/generate-ics";
 import { createMeetEvent, deleteMeetEvent } from "@/lib/google-calendar";
 import { canEditPipeline } from "@/lib/roles";
@@ -15,6 +15,8 @@ import { decryptSecret } from "@/lib/encrypted-secret";
 import { escapeHtml } from "@/lib/html";
 import { z } from "zod";
 import { lockOrganization } from "@/lib/entitlements";
+import { recordAudit } from "@/lib/audit";
+import { planReviewDecision, resolveAssignedRecruiter, reviewStatusAfterScorecard, type ReviewDecision } from "@/lib/interview-outcome";
 
 const ScheduleInterviewSchema = z.object({
   applicationId: z.string().min(1),
@@ -104,7 +106,9 @@ export async function scheduleInterviewAction(data: z.infer<typeof ScheduleInter
     }
 
 
-      const interview = await tx.interview.create({ data: { applicationId: data.applicationId, pipelineStage: data.targetStage, round: data.round, interviewer: data.interviewer, interviewerId: data.interviewerId ?? null, scheduledAt: start, durationMinutes: duration } });
+      const interview = await tx.interview.create({ data: { applicationId: data.applicationId, pipelineStage: data.targetStage, round: data.round, interviewer: data.interviewer, interviewerId: data.interviewerId ?? null, scheduledById: ctx.userId, scheduledAt: start, durationMinutes: duration } });
+      // Booking another round is the recruiter's "override": it settles any failed-scorecard decision still open.
+      await tx.interview.updateMany({ where: { applicationId: data.applicationId, reviewStatus: "PENDING_REVIEW" }, data: { reviewStatus: "OVERRIDDEN", reviewedById: ctx.userId, reviewedAt: new Date(), reviewNote: "Re-interview scheduled" } });
       await tx.jobApplication.update({ where: { id: data.applicationId }, data: { stage: data.targetStage } });
       await tx.activityLog.create({ data: { userId: ctx.userId, applicationId: data.applicationId, action: "Interview Scheduled", details: data.round } });
     const { subject, html } = interviewScheduledEmail(
@@ -197,59 +201,213 @@ export async function scheduleInterviewAction(data: z.infer<typeof ScheduleInter
 
 export async function submitInterviewFeedbackAction(data: {
   interviewId: string;
-  result: "PASSED" | "FAILED" | "PENDING";
+  result: "PASSED" | "FAILED";
   rating: number;
   feedback: string;
 }) {
-  const parsed = z.object({ interviewId: z.string().min(1), result: z.enum(["PASSED", "FAILED", "PENDING"]), rating: z.number().int().min(1).max(5), feedback: z.string().trim().max(10000) }).safeParse(data);
+  const parsed = z.object({ interviewId: z.string().min(1), result: z.enum(["PASSED", "FAILED"]), rating: z.number().int().min(1).max(5), feedback: z.string().trim().max(10000) }).safeParse(data);
   if (!parsed.success) return { error: "Invalid feedback." };
   data = parsed.data;
+  if (data.result === "FAILED" && !data.feedback) return { error: "Add feedback explaining the result so the recruiter can review it." };
   const userId = await requireAuth();
   if (!userId) return { error: "Unauthorized" };
-  if (data.rating < 1 || data.rating > 5) return { error: "Rating must be between 1 and 5." };
 
+  let queuedEmailId: string | null = null;
   try {
     const interview = await prisma.interview.findUnique({
       where: { id: data.interviewId },
       select: {
         id: true,
+        round: true,
+        interviewer: true,
         applicationId: true,
         interviewerId: true,
-        application: { select: { job: { select: { organizationId: true } } } },
+        scheduledById: true,
+        application: { select: { candidate: { select: { fullName: true } }, job: { select: { title: true, organizationId: true } } } },
       },
     });
     if (!interview) return { error: "Interview not found or unauthorized." };
+    const organizationId = interview.application.job.organizationId;
 
     // Access = either you're the specific person this interview is assigned
     // to (works across every org you're linked to), or you're on the org that
     // owns this job (recruiters/admins entering feedback on someone's behalf,
     // or legacy interviews with no linked account).
     const membership = await prisma.membership.findFirst({
-        where: { userId, organizationId: interview.application.job.organizationId },
+        where: { userId, organizationId },
         select: { role: true },
       });
     if (!membership || (!canEditPipeline(membership.role) && interview.interviewerId !== userId)) return { error: "Interview not found or unauthorized." };
 
-    await prisma.$transaction([
-      prisma.interview.update({
-        where: { id: data.interviewId },
-        data: { result: data.result, rating: data.rating, feedback: data.feedback },
-      }),
-      prisma.activityLog.create({
+    // Interviewers only assess. Submitting FAILED never touches the pipeline or emails the
+    // candidate: it opens a decision for the recruiter (see reviewFailedInterviewAction).
+    const reviewStatus = await prisma.$transaction(async tx => {
+      // Lock order across the interview flows is Organization -> JobApplication -> Interview.
+      await tx.$queryRaw`SELECT "id" FROM "JobApplication" WHERE "id" = ${interview.applicationId} FOR UPDATE`;
+      const application = await tx.jobApplication.findUniqueOrThrow({ where: { id: interview.applicationId }, select: { stage: true } });
+      const nextReviewStatus = reviewStatusAfterScorecard(data.result, application.stage);
+      const recruiter = nextReviewStatus ? await resolveAssignedRecruiter(tx, organizationId, interview.scheduledById) : null;
+
+      // Compare-and-set: the scorecard is immutable once submitted, so a Pass cannot be flipped
+      // to a Fail (or resubmitted) and a double click cannot alert the recruiter twice.
+      const saved = await tx.interview.updateMany({
+        where: { id: interview.id, result: null },
+        data: {
+          result: data.result, rating: data.rating, feedback: data.feedback, scorecardSubmittedAt: new Date(),
+          reviewStatus: nextReviewStatus, reviewAssigneeId: recruiter?.id ?? null,
+        },
+      });
+      if (saved.count !== 1) throw new Error("ALREADY_SUBMITTED");
+
+      await tx.activityLog.create({
         data: {
           userId,
           applicationId: interview.applicationId,
           action: "Interview Feedback Submitted",
           details: `Result: ${data.result}, Rating: ${data.rating}/5`,
         },
-      }),
-    ]);
+      });
 
+      if (recruiter) {
+        await tx.activityLog.create({
+          data: {
+            userId,
+            applicationId: interview.applicationId,
+            action: "Awaiting Recruiter Decision",
+            details: `${interview.application.candidate.fullName} did not pass ${interview.round}; ${recruiter.name || recruiter.email} was alerted`,
+          },
+        });
+        // No self-alert when the recruiter entered the scorecard themselves.
+        if (recruiter.id !== userId) {
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+          const template = interviewFailedRecruiterEmail({
+            recruiterName: recruiter.name,
+            candidateName: interview.application.candidate.fullName,
+            jobTitle: interview.application.job.title,
+            round: interview.round,
+            interviewerName: interview.interviewer,
+            rating: data.rating,
+            feedback: data.feedback,
+            reviewUrl: `${baseUrl}/dashboard/interviews`,
+          });
+          queuedEmailId = await enqueueEmail(tx, recruiter.email, template.subject, template.html, undefined, `interview-failed:${interview.id}`, new Date(Date.now() + 14 * 86_400_000));
+        }
+      }
+      return nextReviewStatus;
+    });
+
+    if (queuedEmailId) dispatchQueuedEmail(queuedEmailId);
     revalidatePath("/dashboard/interviews");
-    return { success: "Feedback saved." };
+    revalidatePath("/dashboard");
+    return reviewStatus
+      ? { success: "Scorecard saved. Your recruiter has been alerted and will decide the next step.", reviewStatus }
+      : { success: "Feedback saved.", reviewStatus: null };
   } catch (error) {
+    if (error instanceof Error && error.message === "ALREADY_SUBMITTED") return { error: "A scorecard was already submitted for this interview." };
     logError("actions.interview", error);
     return { error: "Failed to save feedback." };
+  }
+}
+
+/**
+ * Recruiter decision gate for a FAILED scorecard.
+ *  CONFIRM_REJECTION → application moves to REJECTED, the candidate gets one status email, and any
+ *                      other upcoming interview for that application is cancelled.
+ *  OVERRIDE          → nothing changes for the candidate; the recruiter routes the card manually
+ *                      (advance, re-interview, other role, reject later).
+ * Only OWNER / ADMIN / RECRUITER may call this. Interviewers can never move a card.
+ */
+export async function reviewFailedInterviewAction(data: { interviewId: string; decision: ReviewDecision; note?: string }) {
+  const parsed = z.object({ interviewId: z.string().min(1), decision: z.enum(["CONFIRM_REJECTION", "OVERRIDE"]), note: z.string().trim().max(1000).optional() }).safeParse(data);
+  if (!parsed.success) return { error: "Invalid decision." };
+  const { interviewId, decision, note } = parsed.data;
+  const ctx = await requireOrg();
+  if (!ctx) return { error: "Unauthorized" };
+  if (!canEditPipeline(ctx.role)) return { error: "Only recruiters and owners can decide on a failed interview." };
+
+  let queuedEmailId: string | null = null;
+  let cancelledEvents: string[] = [];
+  let jobId = "";
+  try {
+    const interview = await prisma.interview.findUnique({
+      where: { id: interviewId },
+      select: {
+        round: true,
+        applicationId: true,
+        application: { select: { stage: true, candidate: { select: { fullName: true, email: true } }, job: { select: { id: true, title: true, organizationId: true } } } },
+      },
+    });
+    if (!interview || interview.application.job.organizationId !== ctx.organizationId) return { error: "Interview not found or unauthorized." };
+    jobId = interview.application.job.id;
+    const candidate = interview.application.candidate;
+
+    await prisma.$transaction(async tx => {
+      await lockOrganization(tx, ctx.organizationId);
+      await tx.$queryRaw`SELECT "id" FROM "JobApplication" WHERE "id" = ${interview.applicationId} FOR UPDATE`;
+      const application = await tx.jobApplication.findUniqueOrThrow({ where: { id: interview.applicationId }, select: { stage: true } });
+      const plan = planReviewDecision(decision, application.stage);
+      if (!plan.ok) throw new Error(plan.reason);
+
+      // Compare-and-set: two recruiters (or a double click) cannot both decide.
+      const now = new Date();
+      const claimed = await tx.interview.updateMany({
+        where: { id: interviewId, reviewStatus: "PENDING_REVIEW" },
+        data: { reviewStatus: plan.nextReviewStatus, reviewedById: ctx.userId, reviewedAt: now, reviewNote: note || null },
+      });
+      if (claimed.count !== 1) throw new Error("NOT_PENDING");
+
+      if (decision === "OVERRIDE") {
+        await tx.activityLog.create({ data: { userId: ctx.userId, applicationId: interview.applicationId, action: "Failed Scorecard Overridden", details: note ? `${interview.round}: ${note}` : `${interview.round} result overridden by the recruiter` } });
+        await recordAudit(tx, ctx, "INTERVIEW_REJECTION_OVERRIDDEN", interviewId);
+        return;
+      }
+
+      // Any other failed round still waiting on a decision for this application is settled by the same decision.
+      await tx.interview.updateMany({ where: { applicationId: interview.applicationId, reviewStatus: "PENDING_REVIEW" }, data: { reviewStatus: "REJECTION_CONFIRMED", reviewedById: ctx.userId, reviewedAt: now, reviewNote: note || null } });
+
+      if (plan.moveToRejected) {
+        await tx.jobApplication.update({ where: { id: interview.applicationId }, data: { stage: "REJECTED" } });
+        await tx.activityLog.create({ data: { userId: ctx.userId, applicationId: interview.applicationId, action: "Moved to REJECTED", details: `${candidate.fullName} shifted from ${application.stage} to REJECTED after a failed ${interview.round} scorecard` } });
+      }
+      if (plan.notifyCandidate) {
+        const template = stageChangeEmail(candidate.fullName, interview.application.job.title, "REJECTED");
+        queuedEmailId = await enqueueEmail(tx, candidate.email, template.subject, template.html, undefined, `interview-rejection:${interviewId}`);
+      }
+
+      // The candidate is out: upcoming rounds must not send reminders or hold calendar slots.
+      const upcoming = await tx.interview.findMany({ where: { applicationId: interview.applicationId, id: { not: interviewId }, result: null, scheduledAt: { gt: now } }, select: { id: true, round: true, googleEventId: true } });
+      if (upcoming.length) {
+        const ids = upcoming.map(i => i.id);
+        await tx.emailOutbox.updateMany({ where: { dedupeKey: { in: ids.flatMap(id => [`interview-scheduled:${id}`, `interview-reminder:${id}`]) }, sentAt: null, failedAt: null }, data: { failedAt: now } });
+        await tx.interview.deleteMany({ where: { id: { in: ids } } });
+        await tx.activityLog.create({ data: { userId: ctx.userId, applicationId: interview.applicationId, action: "Interview Cancelled", details: `${upcoming.map(i => i.round).join(", ")} cancelled because the application was rejected` } });
+        cancelledEvents = upcoming.flatMap(i => (i.googleEventId ? [i.googleEventId] : []));
+      }
+      await recordAudit(tx, ctx, "INTERVIEW_REJECTION_CONFIRMED", interviewId);
+    });
+
+    if (cancelledEvents.length) {
+      const org = await prisma.organization.findUnique({ where: { id: ctx.organizationId }, select: { googleRefreshToken: true } });
+      if (org?.googleRefreshToken) {
+        for (const eventId of cancelledEvents) {
+          try { await deleteMeetEvent({ refreshToken: decryptSecret(org.googleRefreshToken), eventId }); }
+          catch (calendarError) { logError("actions.interview", calendarError); }
+        }
+      }
+    }
+    if (queuedEmailId) dispatchQueuedEmail(queuedEmailId);
+    revalidatePath("/dashboard/interviews");
+    revalidatePath(`/dashboard/jobs/${jobId}`);
+    revalidatePath("/dashboard");
+    return { success: decision === "CONFIRM_REJECTION" ? `${candidate.fullName} was moved to Rejected and notified.` : "Result overridden. Route the candidate from the pipeline." };
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === "NOT_PENDING") return { error: "This result was already decided." };
+      if (error.message === "ALREADY_HIRED") return { error: "This candidate is already hired, so the failed round can't reject them." };
+      if (error.message.startsWith("Your trial or subscription")) return { error: error.message };
+    }
+    logError("actions.interview", error);
+    return { error: "Failed to record the decision." };
   }
 }
 

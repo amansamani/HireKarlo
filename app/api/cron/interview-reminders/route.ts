@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const dueInterviews = await prisma.interview.findMany({
-      where: { scheduledAt: { gte: windowStart, lte: windowEnd }, reminderSentAt: null },
+      where: { scheduledAt: { gte: windowStart, lte: windowEnd }, reminderSentAt: null, application: { stage: { notIn: ["REJECTED", "HIRED"] } } },
       take: 100,
       orderBy: { scheduledAt: "asc" },
       select: {

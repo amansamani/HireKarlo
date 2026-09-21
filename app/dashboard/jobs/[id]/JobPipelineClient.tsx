@@ -59,6 +59,7 @@ type PipelineApplication = {
   matchScore: number | null;
   aiSummary: string | null;
   scoringStatus?: string;
+  pendingReview?: boolean;
   candidate: { fullName: string; email: string; resumeUrl: string | null };
 };
 type PipelineJob = {
@@ -241,6 +242,16 @@ function CandidateCard({
 
       {app.aiSummary && (
         <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">{app.aiSummary}</p>
+      )}
+
+      {/* A failed scorecard never moves the card by itself; it waits here for a recruiter decision. */}
+      {editable && app.pendingReview && (
+        <Link
+          href="/dashboard/interviews"
+          className="mt-2 flex items-center justify-center gap-1 rounded-lg border border-warning/30 bg-warning/10 px-2 py-1 text-[10px] font-semibold text-warning transition-colors hover:bg-warning/20"
+        >
+          <UserX className="h-3 w-3" aria-hidden="true" /> Interview failed — decision needed
+        </Link>
       )}
 
       {/* ✅ Action row — resume always visible; Score/Schedule only for pipeline editors */}

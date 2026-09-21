@@ -1,7 +1,7 @@
 "use server";
 import { logError } from "@/lib/logger";
 
-import { canEditPipeline } from "@/lib/roles";
+import { canEditPipeline, PIPELINE_EDITOR_ROLES } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { requireOrg } from "@/lib/require-auth";
 
@@ -45,7 +45,7 @@ export async function getNotificationsAction() {
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   try {
-    const [apps, interviews, pendingInvites] = await Promise.all([
+    const [apps, interviews, pendingInvites, pendingReviews] = await Promise.all([
       prisma.jobApplication.findMany({
         where: { job: { organizationId: ctx.organizationId }, appliedDate: { gte: weekAgo } },
         select: {
@@ -74,7 +74,31 @@ export async function getNotificationsAction() {
         take: 5,
       }),
       prisma.teamInvite.count({ where: { organizationId: ctx.organizationId, expires: { gt: now } } }),
+      // Failed scorecards waiting for a recruiter decision. Not limited to the 7-day window: it stays until decided.
+      prisma.interview.findMany({
+        where: { reviewStatus: "PENDING_REVIEW", application: { job: { organizationId: ctx.organizationId } } },
+        select: { id: true, round: true, reviewAssigneeId: true, scorecardSubmittedAt: true, updatedAt: true, application: { select: { candidate: { select: { fullName: true } }, job: { select: { title: true } } } } },
+        orderBy: { updatedAt: "desc" },
+        take: 25,
+      }),
     ]);
+
+    // The alert goes to the assigned recruiter. If they have since lost pipeline access,
+    // it falls back to the workspace owner so a decision can't be orphaned.
+    const assigneeIds = [...new Set(pendingReviews.flatMap(r => (r.reviewAssigneeId ? [r.reviewAssigneeId] : [])))];
+    const activeAssignees = new Set((await prisma.membership.findMany({
+      where: { organizationId: ctx.organizationId, userId: { in: assigneeIds }, role: { in: [...PIPELINE_EDITOR_ROLES] } },
+      select: { userId: true },
+    })).map(m => m.userId));
+    const reviewAlerts = pendingReviews
+      .filter(r => r.reviewAssigneeId === ctx.userId || (ctx.role === "OWNER" && (!r.reviewAssigneeId || !activeAssignees.has(r.reviewAssigneeId))))
+      .map(r => ({
+        id: `review-${r.id}`,
+        type: "interview_review" as const,
+        title: `${r.application.candidate.fullName} did not pass ${r.round}`,
+        meta: `Decision needed · ${r.application.job.title}`,
+        at: r.scorecardSubmittedAt ?? r.updatedAt,
+      }));
 
     const notifications = [
       ...apps.map((a) => ({
@@ -95,7 +119,8 @@ export async function getNotificationsAction() {
       .sort((x, y) => +new Date(y.at) - +new Date(x.at))
       .slice(0, 10);
 
-    return { notifications, pendingInvites };
+    // Open decisions always lead the feed, ahead of the routine items.
+    return { notifications: [...reviewAlerts.slice(0, 10), ...notifications].slice(0, 12), pendingInvites };
   } catch (error) {
     logError("actions.analytics", error);
     return { error: "Failed to load notifications.", notifications: [], pendingInvites: 0 };

@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 import { enqueueEmail, dispatchQueuedEmail } from "@/lib/send-email";
 import { stageChangeEmail } from "@/lib/email-templates";
 import { lockOrganization } from "@/lib/entitlements";
+import { reviewStatusAfterManualMove } from "@/lib/interview-outcome";
 
 const StageSchema = z.string().trim().min(1).max(60);
 
@@ -28,7 +29,7 @@ export async function getJobApplicantsAction(jobId: string, requestedPage = 1) {
     }
 
     const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10000) : 1;
-    const [applications, activityLogs] = await Promise.all([
+    const [applications, activityLogs, pendingReviews] = await Promise.all([
       prisma.jobApplication.findMany({
         where: { jobId },
         select: {
@@ -45,9 +46,11 @@ export async function getJobApplicantsAction(jobId: string, requestedPage = 1) {
         orderBy: { createdAt: "desc" },
         take: 50,
       }),
+      prisma.interview.findMany({ where: { reviewStatus: "PENDING_REVIEW", application: { jobId } }, select: { applicationId: true } }),
     ]);
+    const awaitingDecision = new Set(pendingReviews.map(r => r.applicationId));
 
-    const safeApplications = applications.slice(0,100).map(a => ({ ...a, resumeUrl: undefined, scoringStatus: a.aiScoringJob ? a.aiScoringJob.completedAt ? "COMPLETE" : a.aiScoringJob.failedAt ? "FAILED" : "PENDING" : "NONE", candidate: { ...a.candidate, resumeUrl: (a.resumeUrl || a.candidate.resumeUrl) ? `/api/application-resumes/${a.id}` : null } }));
+    const safeApplications = applications.slice(0,100).map(a => ({ ...a, resumeUrl: undefined, pendingReview: awaitingDecision.has(a.id), scoringStatus: a.aiScoringJob ? a.aiScoringJob.completedAt ? "COMPLETE" : a.aiScoringJob.failedAt ? "FAILED" : "PENDING" : "NONE", candidate: { ...a.candidate, resumeUrl: (a.resumeUrl || a.candidate.resumeUrl) ? `/api/application-resumes/${a.id}` : null } }));
     return { job, hasMore: applications.length > 100, page, applications: safeApplications, activityLogs, canEditPipeline: canEditPipeline(ctx.role) };
   } catch (error) {
     logError("actions.application", error);
@@ -81,6 +84,9 @@ export async function updateApplicationStatusAction(applicationId: string, statu
       const fresh = await tx.jobApplication.findUniqueOrThrow({where:{id:applicationId},select:{stage:true}});
       if (fresh.stage === parsedStage.data) return null;
       await tx.jobApplication.update({ where: { id: applicationId }, data: { stage: parsedStage.data } });
+      // Routing the card by hand settles any failed-scorecard decision still open for it:
+      // moving to REJECTED confirms the rejection, any other move is an override.
+      await tx.interview.updateMany({ where: { applicationId, reviewStatus: "PENDING_REVIEW" }, data: { reviewStatus: reviewStatusAfterManualMove(parsedStage.data), reviewedById: ctx.userId, reviewedAt: new Date(), reviewNote: "Resolved by moving the card manually" } });
       await tx.activityLog.create({
         data: {
           userId: ctx.userId,

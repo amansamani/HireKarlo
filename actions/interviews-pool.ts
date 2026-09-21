@@ -27,6 +27,8 @@ export async function getAllInterviewsAction(page: number = 1) {
         result: true,
         rating: true,
         feedback: true,
+        reviewStatus: true,
+        reviewNote: true,
         application: {
           select: {
             job: { select: { id: true, title: true } },
@@ -40,7 +42,7 @@ export async function getAllInterviewsAction(page: number = 1) {
     });
 
     const hasMore = rows.length > PAGE_SIZE;
-    return { interviews: rows.slice(0, PAGE_SIZE).map(row => ctx.role === "INTERVIEWER" ? { ...row, interviewerRating: null, candidateExperienceRating: null } : row), hasMore };
+    return { interviews: rows.slice(0, PAGE_SIZE).map(row => ctx.role === "INTERVIEWER" ? { ...row, interviewerRating: null, candidateExperienceRating: null, reviewNote: null } : row), hasMore };
   } catch (error) {
     logError("actions.interviews-pool", error);
     return { error: "Failed to load interviews.", interviews: [], hasMore: false };

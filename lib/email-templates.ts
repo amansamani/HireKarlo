@@ -194,3 +194,48 @@ export function resetPasswordEmailTemplate(name: string, resetUrl: string) {
     `,
   };
 }
+
+/**
+ * Internal alert to the assigned recruiter (or workspace owner) when an interviewer submits a
+ * FAILED scorecard. Deliberately not sent to the candidate: nothing is candidate-facing until
+ * the recruiter confirms the rejection.
+ */
+export function interviewFailedRecruiterEmail(input: {
+  recruiterName: string | null;
+  candidateName: string;
+  jobTitle: string;
+  round: string;
+  interviewerName: string;
+  rating: number;
+  feedback: string;
+  reviewUrl: string;
+}) {
+  const recruiter = escapeHtml(input.recruiterName?.trim() || "there");
+  const candidate = escapeHtml(input.candidateName);
+  const job = escapeHtml(input.jobTitle);
+  const round = escapeHtml(input.round);
+  const interviewer = escapeHtml(input.interviewerName);
+  const feedback = escapeHtml(input.feedback);
+  const reviewUrl = escapeHtml(input.reviewUrl);
+  const rating = Math.min(5, Math.max(1, Math.round(input.rating)));
+
+  return {
+    subject: `Action needed: ${input.candidateName} did not pass ${input.round} — ${input.jobTitle}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: auto; padding: 24px; color: #18181b;">
+        <h2 style="margin-bottom: 4px;">Hi ${recruiter},</h2>
+        <p style="color: #52525b; line-height: 1.6;"><strong>${candidate}</strong> did not pass the <strong>${round}</strong> for <strong>${job}</strong>. The candidate has <strong>not</strong> been told anything yet — the next step is yours.</p>
+        <div style="background: #f4f4f5; border-radius: 8px; padding: 16px; margin: 16px 0;">
+          <p style="margin: 4px 0;"><strong>Interviewer:</strong> ${interviewer}</p>
+          <p style="margin: 4px 0;"><strong>Rating:</strong> ${rating}/5</p>
+          <p style="margin: 8px 0 0; white-space: pre-wrap;"><strong>Feedback:</strong> ${feedback || "No written feedback provided."}</p>
+        </div>
+        <p style="color: #52525b; line-height: 1.6;">Review the feedback, then either confirm the rejection (the candidate is moved to Rejected and notified) or override it to re-interview or route them yourself.</p>
+        <div style="margin: 24px 0;">
+          <a href="${reviewUrl}" style="background: #18181b; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">Review decision</a>
+        </div>
+        <p style="color: #a1a1aa; font-size: 12px; margin-top: 32px;">— HireKarlo</p>
+      </div>
+    `,
+  };
+}

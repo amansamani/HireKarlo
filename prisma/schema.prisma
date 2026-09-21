@@ -244,6 +244,19 @@ model Interview {
   candidateExperienceRating Int?
   interviewerRating Int?
   reminderSentAt    DateTime?
+
+  // Interview outcome workflow (see docs/interview-outcome-workflow.md).
+  // result is owned by the interviewer and immutable once set: "PASSED" | "FAILED".
+  // reviewStatus is the recruiter decision gate that only exists for a FAILED result:
+  //   "PENDING_REVIEW" -> "REJECTION_CONFIRMED" | "OVERRIDDEN". NULL = no decision needed / legacy row.
+  // The *Id columns are plain audit references (no FK), like AuditEvent.actorId.
+  scheduledById        String?   // recruiter who booked it = the "assigned recruiter"
+  scorecardSubmittedAt DateTime?
+  reviewStatus         String?
+  reviewAssigneeId     String?   // who was alerted (assigned recruiter, else workspace owner)
+  reviewedById         String?
+  reviewedAt           DateTime?
+  reviewNote           String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -252,6 +265,7 @@ model Interview {
   @@index([applicationId])
   @@index([interviewerId, scheduledAt])
   @@index([scheduledAt, reminderSentAt])
+  @@index([reviewStatus, reviewAssigneeId])
 }
 model ActivityLog {
   id            String          @id @default(cuid())

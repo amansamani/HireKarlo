@@ -33,6 +33,19 @@ export default async function setup() {
     const hidden=await db.candidate.create({data:{fullName:"Hidden Unassigned Candidate",email:`${prefix}-hidden@example.test`,experience:1,skills:[],organizationId:org.id,recruiterId:owner.id}});
     const hiddenApp=await db.jobApplication.create({data:{candidateId:hidden.id,jobId:job.id}});
     await db.interview.create({data:{applicationId:hiddenApp.id,round:"Hidden Owner Round",interviewerId:owner.id,interviewer:"Browser Owner",scheduledAt:new Date(Date.now()+2*86400000)}});
-    Object.assign(process.env,{E2E_PREFIX:prefix,E2E_OWNER_EMAIL:owner.email,E2E_BILLING_OWNER_EMAIL:billingOwner.email,E2E_UI_OWNER_EMAIL:uiOwner.email,E2E_INTERVIEWER_EMAIL:interviewer.email,E2E_PASSWORD:password,E2E_JOB_ID:job.id,E2E_OTHER_JOB_ID:otherJob.id,E2E_APPLICATION_ID:app.id});
+    // Failed scorecards waiting on a recruiter decision (interview-outcome.spec.ts). The first two are not
+    // assigned to the interviewer, so the interviewer journey still has exactly one scorecard left to submit.
+    // Own job: these cards get rejected/overridden by interview-outcome.spec.ts, which runs in parallel with
+    // workspace.spec.ts and must not change the board that spec drives.
+    const decisionJob=await db.job.create({data:{title:"Decision Flow Role",department:"Engineering",location:"Remote",type:"Full-time",description:"Interview outcome fixture",userId:owner.id,organizationId:org.id}});
+    const failedRound=async(name:string,slug:string,interviewerId:string|null,interviewerName:string)=>{
+      const cand=await db.candidate.create({data:{fullName:name,email:`${prefix}-${slug}@example.test`,experience:1,skills:[],organizationId:org.id,recruiterId:owner.id}});
+      const application=await db.jobApplication.create({data:{candidateId:cand.id,jobId:decisionJob.id,stage:"Interview"}});
+      await db.interview.create({data:{applicationId:application.id,round:`Decision round ${slug}`,interviewer:interviewerName,interviewerId,scheduledById:owner.id,scheduledAt:new Date(Date.now()-3600_000),result:"FAILED",rating:2,feedback:`Fixture feedback ${slug}`,scorecardSubmittedAt:new Date(),reviewStatus:"PENDING_REVIEW",reviewAssigneeId:owner.id}});
+    };
+    await failedRound("Confirm Flow Candidate","confirm-flow",null,"External Panelist");
+    await failedRound("Override Flow Candidate","override-flow",null,"External Panelist");
+    await failedRound("Awaiting Decision Candidate","awaiting-decision",interviewer.id,"Browser Interviewer");
+    Object.assign(process.env,{E2E_PREFIX:prefix,E2E_OWNER_EMAIL:owner.email,E2E_BILLING_OWNER_EMAIL:billingOwner.email,E2E_UI_OWNER_EMAIL:uiOwner.email,E2E_INTERVIEWER_EMAIL:interviewer.email,E2E_PASSWORD:password,E2E_JOB_ID:job.id,E2E_DECISION_JOB_ID:decisionJob.id,E2E_OTHER_JOB_ID:otherJob.id,E2E_APPLICATION_ID:app.id});
   } finally { await db.$disconnect(); await pool.end(); }
 }

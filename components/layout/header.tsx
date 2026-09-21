@@ -7,7 +7,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import {
   Menu, LogOut, Bell, Settings, Calendar, CalendarOff, FileText, Video,
-  Loader2, Users2, ExternalLink, Pencil, Check,
+  Loader2, Users2, ExternalLink, Pencil, Check, ClipboardX,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
@@ -78,7 +78,7 @@ function useClickOutside(onOut: () => void) {
 
 type Notif = {
   id: string;
-  type: "application" | "interview";
+  type: "application" | "interview" | "interview_review";
   title: string;
   meta: string;
   at: Date | string;
@@ -147,23 +147,32 @@ function NotificationBell() {
                 You&apos;re all caught up 🎉
               </div>
             ) : (
-              items.map((n) => (
-                <div key={n.id} className="flex items-start gap-3 border-b border-border/20 px-4 py-3 transition-colors hover:bg-muted/30">
-                  <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
-                    n.type === "application" ? "bg-primary/10" : "bg-warning/10")}>
-                    {n.type === "application"
-                      ? <FileText className="h-4 w-4 text-primary" />
-                      : <Video className="h-4 w-4 text-warning" />}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-semibold text-foreground">{n.title}</p>
-                    <p className="text-[10px] text-muted-foreground">{n.meta}</p>
-                  </div>
-                  <span className="shrink-0 text-[10px] font-medium text-muted-foreground">
-                    {n.type === "interview" && isFutureDate(n.at) ? timeUntil(n.at) : timeAgo(n.at)}
-                  </span>
-                </div>
-              ))
+              items.map((n) => {
+                const row = (
+                  <>
+                    <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+                      n.type === "application" ? "bg-primary/10" : n.type === "interview_review" ? "bg-destructive/10" : "bg-warning/10")}>
+                      {n.type === "application"
+                        ? <FileText className="h-4 w-4 text-primary" />
+                        : n.type === "interview_review"
+                          ? <ClipboardX className="h-4 w-4 text-destructive" />
+                          : <Video className="h-4 w-4 text-warning" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-semibold text-foreground">{n.title}</p>
+                      <p className="text-[10px] text-muted-foreground">{n.meta}</p>
+                    </div>
+                    <span className="shrink-0 text-[10px] font-medium text-muted-foreground">
+                      {n.type === "interview" && isFutureDate(n.at) ? timeUntil(n.at) : timeAgo(n.at)}
+                    </span>
+                  </>
+                );
+                const rowClass = "flex items-start gap-3 border-b border-border/20 px-4 py-3 transition-colors hover:bg-muted/30";
+                // A failed interview is actionable: jump straight to the decision on the Interviews page.
+                return n.type === "interview_review"
+                  ? <Link key={n.id} href="/dashboard/interviews" onClick={handleClose} className={rowClass}>{row}</Link>
+                  : <div key={n.id} className={rowClass}>{row}</div>;
+              })
             )}
           </div>
         </div>
