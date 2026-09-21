@@ -6,11 +6,15 @@ test("workflow transitions keep the desktop preview steady and remain interactiv
   const preview = page.locator(".workflow-frame");
   await preview.scrollIntoViewIfNeeded();
   await expect(page.getByText("Every application, in one place.", { exact: true })).toBeVisible();
-  const before = await preview.boundingBox();
+  // Compare layout height, not getBoundingClientRect(): the section reveal animates rotateX(8deg) for 800ms,
+  // which squashes the bounding box by ~6px (1 - cos 8deg) while it runs. Measuring that made this test a race
+  // against the animation instead of a check that switching stages doesn't shift the layout.
+  const layoutHeight = () => preview.evaluate(el => (el as HTMLElement).offsetHeight);
+  const before = await layoutHeight();
   await page.getByRole("button", { name: "04Decision" }).click();
   await expect(page.getByText("Close the loop with confidence.", { exact: true })).toBeVisible();
-  const after = await preview.boundingBox();
-  expect(Math.abs(after!.height - before!.height)).toBeLessThan(2);
+  const after = await layoutHeight();
+  expect(Math.abs(after - before)).toBeLessThan(2);
   await page.getByRole("button", { name: "02Review" }).click();
   await expect(page.getByText("A clearer shortlist. Your judgment.", { exact: true })).toBeVisible();
 });
