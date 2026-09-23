@@ -48,4 +48,4 @@ next-env.d.ts
 /test-results/
 /audit-artifacts/
 
-/docs
+docs/

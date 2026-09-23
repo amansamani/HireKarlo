@@ -40,9 +40,12 @@ export async function recoverRazorpayAgreement(agreement: RazorpayAgreement) {
 }
 
 export async function openRazorpayCheckout(ctx: Context, plan: PlanId, currency: string) {
-  if (currency !== "INR" || !razorpayConfigured(plan)) throw new CheckoutError("unavailable");
-  const providerPlanId = await validatedRazorpayPlan(plan);
-  const intent = await prisma.$transaction(async tx => {
+  if (currency !== "INR" || !razorpayConfigured()) throw new CheckoutError("unavailable");
+
+  // Existing billing state takes precedence over configuration for a newly
+  // requested plan. This also lets a previously-created checkout resume if a
+  // plan is later removed from configuration.
+  let intent = await prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT "id" FROM "Organization" WHERE "id" = ${ctx.organizationId} FOR UPDATE`;
     const existing = await tx.subscription.findUnique({ where: { organizationId: ctx.organizationId } });
     if (existing && existing.provider !== "razorpay") throw new CheckoutError("review");
@@ -53,12 +56,30 @@ export async function openRazorpayCheckout(ctx: Context, plan: PlanId, currency:
       if (!pending.idempotencyKey) throw new CheckoutError("review");
       return pending;
     }
-    const id = randomUUID(), expiresAt = new Date(Date.now() + 24 * 3600_000);
-    await tx.razorpayAgreement.create({ data: { id, organizationId: ctx.organizationId, plan, providerPlanId, keyId: razorpayCredentials().keyId, amount: PLANS[plan].inr * 100 } });
-    const body = { plan_id: providerPlanId, total_count: 120, quantity: 1, customer_notify: 0, expire_by: Math.floor(expiresAt.getTime() / 1000), notes: { organizationId: ctx.organizationId, hirekarloIntentId: id } };
-    await recordAudit(tx, ctx, "RAZORPAY_CHECKOUT_REQUESTED", id);
-    return tx.billingCheckout.create({ data: { organizationId: ctx.organizationId, provider: "razorpay", providerSessionId: `intent_${id}`, idempotencyKey: id, requestBody: JSON.stringify(body), url: "", plan, currency, expiresAt } });
+    return null;
   });
+
+  if (!intent) {
+    if (!razorpayConfigured(plan)) throw new CheckoutError("unavailable");
+    const providerPlanId = await validatedRazorpayPlan(plan);
+    intent = await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT "id" FROM "Organization" WHERE "id" = ${ctx.organizationId} FOR UPDATE`;
+      const existing = await tx.subscription.findUnique({ where: { organizationId: ctx.organizationId } });
+      if (existing && existing.provider !== "razorpay") throw new CheckoutError("review");
+      if (existing && existing.status !== "canceled") throw new CheckoutError("existing");
+      const pending = await tx.billingCheckout.findUnique({ where: { organizationId: ctx.organizationId } });
+      if (pending) {
+        if (pending.provider !== "razorpay" || pending.plan !== plan || pending.currency !== currency) throw new CheckoutError("pending");
+        if (!pending.idempotencyKey) throw new CheckoutError("review");
+        return pending;
+      }
+      const id = randomUUID(), expiresAt = new Date(Date.now() + 24 * 3600_000);
+      await tx.razorpayAgreement.create({ data: { id, organizationId: ctx.organizationId, plan, providerPlanId, keyId: razorpayCredentials().keyId, amount: PLANS[plan].inr * 100 } });
+      const body = { plan_id: providerPlanId, total_count: 120, quantity: 1, customer_notify: 0, expire_by: Math.floor(expiresAt.getTime() / 1000), notes: { organizationId: ctx.organizationId, hirekarloIntentId: id } };
+      await recordAudit(tx, ctx, "RAZORPAY_CHECKOUT_REQUESTED", id);
+      return tx.billingCheckout.create({ data: { organizationId: ctx.organizationId, provider: "razorpay", providerSessionId: `intent_${id}`, idempotencyKey: id, requestBody: JSON.stringify(body), url: "", plan, currency, expiresAt } });
+    });
+  }
   const agreement = await prisma.razorpayAgreement.findUniqueOrThrow({ where: { id: intent.idempotencyKey! } });
   if (agreement.keyId !== razorpayCredentials().keyId) throw new CheckoutError("review");
   const claimed = await prisma.razorpayAgreement.updateMany({ where: { id: agreement.id, creationAttemptedAt: null, providerSubscriptionId: null }, data: { creationAttemptedAt: new Date() } });
