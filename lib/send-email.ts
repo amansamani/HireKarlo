@@ -16,6 +16,31 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// Gmail (and most providers) score HTML-only mail as more likely spam/bulk mail.
+// Derive a plain-text part from the stored HTML at send time so every message is
+// multipart/alternative without changing the template return shape or DB schema.
+function htmlToText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<a\s+[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_match, href, label) => `${label.replace(/<[^>]+>/g, "").trim()} (${href})`)
+    .replace(/<(br|\/p|\/div|\/h[1-6]|\/li)\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+// Override via env once a custom-domain sender (with SPF/DKIM/DMARC configured) replaces
+// raw Gmail SMTP — no code change needed at that point, just EMAIL_FROM_*.
+const FROM_NAME = process.env.EMAIL_FROM_NAME || "HireKarlo";
+const FROM_ADDRESS = process.env.EMAIL_FROM_ADDRESS || process.env.EMAIL_USER;
+
 type Attachment = { filename: string; content: string; contentType: string };
 
 export async function enqueueEmail(tx: Pick<Prisma.TransactionClient, "emailOutbox">, to: string, subject: string, html: string, attachments?: Attachment[], dedupeKey?: string, expiresAt?: Date) {
@@ -47,7 +72,7 @@ export async function deliverEmail(id: string): Promise<boolean> {
   }
   try {
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) throw new Error("SMTP unavailable");
-    await transporter.sendMail({ from: `"HireKarlo" <${process.env.EMAIL_USER}>`, to: message.recipient, subject: message.subject, html: message.html, attachments: (message.attachments ?? undefined) as Attachment[] | undefined });
+    await transporter.sendMail({ from: `"${FROM_NAME}" <${FROM_ADDRESS}>`, to: message.recipient, subject: message.subject, html: message.html, text: htmlToText(message.html), attachments: (message.attachments ?? undefined) as Attachment[] | undefined });
     const acknowledged = await prisma.emailOutbox.updateMany({ where: { id, leaseToken }, data: { sentAt: new Date(), leaseUntil: null, leaseToken: null } });
     return acknowledged.count === 1;
   } catch {

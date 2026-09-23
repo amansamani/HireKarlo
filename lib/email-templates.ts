@@ -1,8 +1,30 @@
 import { escapeHtml } from "@/lib/html";
 
+// A short "why you're getting this" line on every candidate email. Filters and recipients
+// both treat unexplained mail as more spam-like; naming the job they applied to is the
+// cheapest way to make an email read as expected, requested correspondence rather than bulk mail.
+function candidateFooter(job: string) {
+  return `<p style="color: #a1a1aa; font-size: 12px; margin-top: 32px; border-top: 1px solid #e4e4e7; padding-top: 16px;">You're receiving this because you applied for <strong>${job}</strong> on HireKarlo. This is a one-to-one update about your application, not a marketing email.</p>`;
+}
+
 export function applicationReceivedEmail(name: string, job: string) {
-  const trackUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/track`;
-  return { subject: `Application received: ${job}`, html: `<p>Hi ${escapeHtml(name)},</p><p>Your application for ${escapeHtml(job)} has been received.</p><p><a href="${escapeHtml(trackUrl)}">Check your application status</a> using your email address.</p>` };
+  name = escapeHtml(name);
+  job = escapeHtml(job);
+  const trackUrl = escapeHtml(`${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/track`);
+  return {
+    subject: `We've received your application for ${job}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: auto; padding: 24px; color: #18181b;">
+        <h2 style="margin-bottom: 4px;">Hi ${name},</h2>
+        <p style="color: #52525b; line-height: 1.6;">Thanks for applying to <strong>${job}</strong>. Your application is in, and our team will review it shortly.</p>
+        <div style="margin: 24px 0;">
+          <a href="${trackUrl}" style="background: #18181b; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">Track your application</a>
+        </div>
+        <p style="color: #52525b; line-height: 1.6;">Use the email address you applied with to check your status any time.</p>
+        ${candidateFooter(job)}
+      </div>
+    `,
+  };
 }
 
 export function verifyEmailTemplate(name: string, verifyUrl: string) {
@@ -30,33 +52,33 @@ export function stageChangeEmail(candidateName: string, jobTitle: string, newSta
   newStage = escapeHtml(newStage);
   const messages: Record<string, { subject: string; body: string }> = {
     SCREENING: {
-      subject: `Update on your application for ${jobTitle}`,
+      subject: `Your application for ${jobTitle} is under review`,
       body: `Your application is now under review by our team.`,
     },
     TECHNICAL: {
       subject: `Technical interview stage — ${jobTitle}`,
-      body: `Good news — you've moved to the technical interview stage. We'll be in touch shortly to schedule a time.`,
+      body: `You've moved to the technical interview stage. We'll be in touch shortly to schedule a time.`,
     },
     HR: {
       subject: `HR round — ${jobTitle}`,
       body: `You've progressed to the HR round for this role. We'll reach out soon with next steps.`,
     },
     OFFER: {
-      subject: `An offer for ${jobTitle}!`,
-      body: `Congratulations — we'd like to extend you an offer for this position. Our team will follow up with details.`,
+      subject: `You've received an offer — ${jobTitle}`,
+      body: `We'd like to extend you an offer for this position. Our team will follow up shortly with details.`,
     },
     HIRED: {
-      subject: `Welcome aboard — ${jobTitle}!`,
-      body: `Congratulations, and welcome to the team! We're thrilled to have you join us as our new ${jobTitle}. Our team will be in touch shortly with onboarding details.`,
+      subject: `Welcome to the team — ${jobTitle}`,
+      body: `Welcome aboard. We're glad to have you join us as our new ${jobTitle}. Our team will be in touch shortly with onboarding details.`,
     },
     REJECTED: {
-      subject: `Update on your application for ${jobTitle}`,
+      subject: `An update on your application for ${jobTitle}`,
       body: `Thank you for your interest in this role. After careful consideration, we've decided to move forward with other candidates at this time. We appreciate you applying and encourage you to apply for future openings.`,
     },
   };
 
   const content = messages[newStage] ?? {
-    subject: `Update on your application for ${jobTitle}`,
+    subject: `An update on your application for ${jobTitle}`,
     body: `Your application status has been updated.`,
   };
 
@@ -66,7 +88,7 @@ export function stageChangeEmail(candidateName: string, jobTitle: string, newSta
       <div style="font-family: sans-serif; max-width: 480px; margin: auto; padding: 24px; color: #18181b;">
         <h2 style="margin-bottom: 4px;">Hi ${candidateName},</h2>
         <p style="color: #52525b; line-height: 1.6;">${content.body}</p>
-        <p style="color: #a1a1aa; font-size: 12px; margin-top: 32px;">— The Hiring Team</p>
+        ${candidateFooter(jobTitle)}
       </div>
     `,
   };
@@ -76,7 +98,7 @@ export function applicationOtpEmail(otp: string, jobTitle: string) {
   otp = escapeHtml(otp);
   jobTitle = escapeHtml(jobTitle);
   return {
-    subject: `Your verification code: ${otp}`,
+    subject: `${otp} is your HireKarlo verification code`,
     html: `
       <div style="font-family: sans-serif; max-width: 480px; margin: auto; padding: 24px; color: #18181b;">
         <h2 style="margin-bottom: 4px;">Verify your email</h2>
@@ -84,8 +106,9 @@ export function applicationOtpEmail(otp: string, jobTitle: string) {
         <div style="margin: 24px 0; text-align: center;">
           <span style="display: inline-block; background: #f4f4f5; border-radius: 8px; padding: 14px 28px; font-size: 28px; font-weight: 700; letter-spacing: 6px;">${otp}</span>
         </div>
-        <p style="color: #a1a1aa; font-size: 12px; line-height: 1.6;">This code expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
-        <p style="color: #a1a1aa; font-size: 12px; margin-top: 32px;">— The Hiring Team</p>
+        <p style="color: #52525b; line-height: 1.6;">Enter this on the application page to continue. It expires in 10 minutes and can only be used once.</p>
+        <p style="color: #a1a1aa; font-size: 12px; line-height: 1.6;">If you didn't request this, you can safely ignore this email — no account will be created.</p>
+        ${candidateFooter(jobTitle)}
       </div>
     `,
   };
@@ -116,10 +139,10 @@ export function interviewScheduledEmail(
         <div style="background: #f4f4f5; border-radius: 8px; padding: 16px; margin: 16px 0;">
           <p style="margin: 4px 0;"><strong>When:</strong> ${formattedDate}</p>
           <p style="margin: 4px 0;"><strong>With:</strong> ${interviewer}</p>
-          ${meetingLink ? `<p style="margin: 4px 0;"><strong>Join:</strong> <a href="${meetingLink}">${meetingLink}</a></p>` : ""}
+          ${meetingLink ? `<p style="margin: 4px 0;"><strong>Join:</strong> <a href="${meetingLink}">Open meeting link</a></p>` : ""}
         </div>
         <p style="color: #52525b; line-height: 1.6;">A calendar invite is attached. We look forward to speaking with you.</p>
-        <p style="color: #a1a1aa; font-size: 12px; margin-top: 32px;">— The Hiring Team</p>
+        ${candidateFooter(jobTitle)}
       </div>
     `,
   };
@@ -139,7 +162,7 @@ export function interviewCancelledEmail(candidateName: string, jobTitle: string,
         <h2 style="margin-bottom: 4px;">Hi ${candidateName},</h2>
         <p style="color: #52525b; line-height: 1.6;">Your ${round} for the <strong>${jobTitle}</strong> role, originally scheduled for ${formattedDate}, has been cancelled.</p>
         <p style="color: #52525b; line-height: 1.6;">We'll be in touch if it needs to be rescheduled.</p>
-        <p style="color: #a1a1aa; font-size: 12px; margin-top: 32px;">— The Hiring Team</p>
+        ${candidateFooter(jobTitle)}
       </div>
     `,
   };
@@ -170,7 +193,7 @@ export function interviewReminderEmail(
           <p style="margin: 4px 0;"><strong>With:</strong> ${interviewer}</p>
         </div>
         <p style="color: #52525b; line-height: 1.6;">Good luck — we look forward to speaking with you.</p>
-        <p style="color: #a1a1aa; font-size: 12px; margin-top: 32px;">— The Hiring Team</p>
+        ${candidateFooter(jobTitle)}
       </div>
     `,
   };
