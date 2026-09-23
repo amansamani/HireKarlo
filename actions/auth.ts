@@ -43,7 +43,7 @@ export async function registerAction(values: z.infer<typeof RegisterSchema>) {
 
   const { name, email, password } = validatedFields.data;
   const pilotAllowlist = process.env.PILOT_SIGNUP_EMAILS?.split(",").map(normalizeEmail).filter(Boolean);
-  if (pilotAllowlist?.length && !pilotAllowlist.includes(email)) {
+  if ((process.env.NODE_ENV === "production" && !pilotAllowlist?.length) || (pilotAllowlist?.length && !pilotAllowlist.includes(email))) {
     return { error: "HireKarlo is running a private pilot. Contact amanworkinfo@gmail.com for access." };
   }
   try {

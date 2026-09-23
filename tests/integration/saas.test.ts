@@ -70,6 +70,21 @@ describe("SaaS controls against isolated PostgreSQL", () => {
       else process.env.PILOT_SIGNUP_EMAILS = previous;
     }
   });
+  it("fails closed for production registration without an allowlist", async () => {
+    const previous = process.env.PILOT_SIGNUP_EMAILS;
+    vi.stubEnv("NODE_ENV", "production");
+    process.env.PILOT_SIGNUP_EMAILS = "";
+    try {
+      const email = `${prefix}-no-allowlist@example.test`;
+      const result = await registerAction({ name: "Preview User", email, password: "PilotPassword1!" });
+      expect(result.error).toContain("private pilot");
+      expect(await prisma.user.findUnique({ where: { email } })).toBeNull();
+    } finally {
+      vi.unstubAllEnvs();
+      if (previous === undefined) delete process.env.PILOT_SIGNUP_EMAILS;
+      else process.env.PILOT_SIGNUP_EMAILS = previous;
+    }
+  });
   it("locks an OTP after five guesses across every entry point", async () => {
     const email=`${prefix}-otp@example.test`;
     await prisma.applicationChallenge.create({data:{email,codeHash:hashApplicationCode(email,"123456"),expiresAt:new Date(Date.now()+600000)}});

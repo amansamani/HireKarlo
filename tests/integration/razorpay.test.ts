@@ -71,7 +71,7 @@ describe("Razorpay lifecycle with real isolated PostgreSQL", () => {
     expect(creations).toBe(1);
     expect(await prisma.razorpayAgreement.count({ where: { organizationId: state.ctx.organizationId } })).toBe(1);
     expect(await openRazorpayCheckout(state.ctx, "STARTER", "INR")).toBe(remote.short_url);
-    await expect(openRazorpayCheckout(state.ctx, "GROWTH", "INR")).rejects.toMatchObject({ code: "unavailable" });
+    await expect(openRazorpayCheckout(state.ctx, "GROWTH", "INR")).rejects.toMatchObject({ code: "pending" });
   });
   it("recovers a lost creation response without charging through a second agreement", async () => {
     loseCreate = true;

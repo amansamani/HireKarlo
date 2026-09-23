@@ -12,7 +12,7 @@ If hosting plus the existing database/storage already exceeds the ceiling, keep 
 
 ## Enforced and operational controls
 
-- Set `PILOT_SIGNUP_EMAILS` to a comma-separated list of approved account emails. Registration rejects other accounts while the list is nonempty. Include invited team members who need accounts. Leaving it empty permits public registration. This controls new accounts; it does not remove existing accounts or independently cap existing workspace creation.
+- Set `PILOT_SIGNUP_EMAILS` to a comma-separated list of approved account emails. Production registration remains closed when the list is empty and rejects addresses outside it. Include invited team members who need accounts. This controls new accounts; it does not remove existing accounts or independently cap existing workspace creation.
 - Keep the initial trial AI allowance at 100 attempts per workspace and approve only a few workspaces. Do not promise unlimited screening. Review provider usage daily and disable AI by removing its key if the budget is at risk; candidate applications can proceed without configured AI.
 - Set provider quotas and hosting spend controls where available. Budget alerts alone do not universally stop charges; there is no global hard rupee-denominated cap in the application.
 - Enable frequent cron only on the commercial host, verify email retries, and supervise dead letters. Gmail and free storage/database tiers require their own commercial and quota checks.

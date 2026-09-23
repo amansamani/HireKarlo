@@ -5,7 +5,7 @@ import { NextRequest } from "next/server";
 import { assertAuditDatabase } from "../helpers/audit-db";
 const mail=vi.hoisted(()=>({send:vi.fn(async()=>({messageId:"mock-only"}))}));
 vi.mock("nodemailer",()=>({default:{createTransport:()=>({sendMail:mail.send})}}));
-const state=vi.hoisted(()=>({ctx:{userId:"",organizationId:"",role:"OWNER"},text:"Actual extracted resume text",score:{matchScore:83,summary:"Relevant experience"} as {matchScore:number;summary:string}|null,upload:vi.fn((options:Record<string,unknown>,callback:(error:null,result:{secure_url:string;public_id:string})=>void)=>({end:()=>callback(null,{secure_url:`https://res.cloudinary.com/audit/raw/authenticated/${options.public_id}`,public_id:String(options.public_id)})}))}));
+const state=vi.hoisted(()=>({ctx:{userId:"",organizationId:"",role:"OWNER"},text:"Actual extracted resume text",score:{matchScore:83,summary:"Relevant experience"} as {matchScore:number;summary:string}|null,upload:vi.fn((options:Record<string,unknown>,callback:(error:null,result:{secure_url:string;public_id:string})=>void)=>({end:()=>callback(null,{secure_url:`https://res.cloudinary.com/audit/raw/authenticated/s--permanent--/${options.public_id}`,public_id:String(options.public_id)})}))}));
 vi.mock("@/lib/require-auth",()=>({requireOrg:async()=>state.ctx,requireAuth:async()=>state.ctx.userId}));
 vi.mock("next/headers",()=>({headers:async()=>new Headers({"x-forwarded-for":"127.0.0.1"}),cookies:async()=>({get:()=>undefined,set:vi.fn()})}));
 vi.mock("next/cache",()=>({revalidatePath:vi.fn()}));
@@ -16,7 +16,7 @@ vi.mock("@/lib/ai-scoring-jobs",async original=>({...await original<typeof impor
 vi.mock("@/lib/parse-resume",()=>({extractResumeText:async()=>state.text}));
 vi.mock("@/lib/score-resume",()=>({scoreResumeAgainstJob:vi.fn(async()=>state.score)}));
 vi.mock("@/lib/google-calendar",()=>({createMeetEvent:vi.fn(),deleteMeetEvent:vi.fn()}));
-vi.mock("@/lib/cloudinary",()=>({cloudinary:{uploader:{upload_stream:state.upload,destroy:vi.fn()}}}));
+vi.mock("@/lib/cloudinary",()=>({cloudinary:{url:(publicId:string)=>`https://res.cloudinary.com/audit/raw/authenticated/${publicId}`,uploader:{upload_stream:state.upload,destroy:vi.fn()}}}));
 import { prisma } from "@/lib/prisma";
 import { authorizeCredentials } from "@/lib/credentials";
 import { registerAction } from "@/actions/auth";
@@ -98,7 +98,8 @@ describe("authentication and workflow reliability in isolated PostgreSQL",()=>{
     const email=`${prefix}-upload@example.test`,otp="123456"; await prisma.applicationChallenge.create({data:{email,codeHash:hashApplicationCode(email,otp),expiresAt:new Date(Date.now()+600000),attempts:4}});
     function request(code:string){const form=new FormData();form.set("jobId",jobId);form.set("email",email);form.set("otp",code);form.set("file",new File(["%PDF-1.7 synthetic"],"resume.pdf",{type:"application/pdf"}));return new NextRequest("http://localhost/api/upload",{method:"POST",body:form,headers:{"x-forwarded-for":"127.0.0.1"}});}
     const denied=await uploadResume(request("abcdef"));expect(denied.status).toBe(403);expect(state.upload).not.toHaveBeenCalled();
-    const accepted=await uploadResume(request(otp));expect(accepted.status).toBe(200);expect((await accepted.json()).uploadId).toBeTruthy();expect(state.upload).toHaveBeenCalledTimes(1);
+    const accepted=await uploadResume(request(otp));expect(accepted.status).toBe(200);const uploadId=(await accepted.json()).uploadId;expect(uploadId).toBeTruthy();expect(state.upload).toHaveBeenCalledTimes(1);
+    expect((await prisma.resumeUpload.findUniqueOrThrow({where:{id:uploadId}})).url).not.toContain("s--permanent--");
     expect((await prisma.applicationChallenge.findUniqueOrThrow({where:{email}})).attempts).toBe(4);expect(await checkApplicationCode(email,otp)).toBe(true);
     await prisma.applicationChallenge.delete({where:{email}});
   });

@@ -181,7 +181,7 @@ describe("interview outcome workflow on isolated PostgreSQL", () => {
 
     const rejection = await mail(`interview-rejection:${s.interviewId}`);
     expect(rejection).toMatchObject({ recipient: s.email });
-    expect(rejection!.subject).toContain("Update on your application");
+    expect(rejection!.subject).toContain("An update on your application");
     expect(rejection!.html).not.toContain("closures");                  // interviewer feedback never reaches the candidate
     expect(await prisma.interview.findUnique({ where: { id: upcoming.id } })).toBeNull();
     expect((await mail(`interview-scheduled:${upcoming.id}`))!.failedAt).not.toBeNull();

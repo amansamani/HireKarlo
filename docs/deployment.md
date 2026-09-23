@@ -13,7 +13,7 @@ Copy `.env.example` for local use; configure secrets privately in the hosting da
 | `NEXT_PUBLIC_APP_URL` | Core full origin; HTTPS for a public production domain; exact callback/link origin |
 | `AUTH_TRUST_HOST` | Use only on a trusted hosting/proxy setup; CI/Vercel use true |
 | `DATABASE_POOL_MAX` | Optional per-process cap 1–20, default 5; monitor total instance connections |
-| `PILOT_SIGNUP_EMAILS` | Optional comma-separated normalized email allowlist; empty permits public signup |
+| `PILOT_SIGNUP_EMAILS` | Comma-separated approved addresses for production registration; empty closes registration in production |
 | `EMAIL_USER`, `EMAIL_PASS` | SMTP account/app password; required for delivered verification and notifications |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE` | Optional SMTP configuration; defaults Gmail, 465, true; align security mode with your provider |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Applicant resume storage and signed downloads |

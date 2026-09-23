@@ -97,10 +97,11 @@ export async function POST(req: NextRequest) {
 
     let upload;
     try {
+    const storedUrl = cloudinary.url(result.public_id, { resource_type: "raw", type: "authenticated", secure: true, sign_url: false });
     upload = await prisma.resumeUpload.create({
       data: {
         jobId,
-        url: result.secure_url,
+        url: storedUrl,
         publicId: result.public_id,
         expiresAt: new Date(Date.now() + UPLOAD_TTL_MS),
       },
